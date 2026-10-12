@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Imposter</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <style>
+    .card.ia { --c1: #f87171; --c2: #991b1b; } .card.ib { --c1: #60a5fa; --c2: #1e40af; }
+    .card.ic { --c1: #a78bfa; --c2: #5b21b6; } .card.id { --c1: #34d399; --c2: #065f46; }
+    #table { align-items: center; }
+    #table > * { width: 100%; max-width: 640px; }
+    .topbar .timer { font-family: ui-monospace, monospace; font-weight: 800; padding: 5px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--glass-border); }
+    .timer.low { color: #fff; background: linear-gradient(135deg, #f97316, #ef4444); border-color: transparent; }
+    .stage { border-radius: 28px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; animation: rise .4s ease both; }
+    .stage h2 { margin: 0; font-size: clamp(1.25rem, 4.5vw, 1.7rem); letter-spacing: -.02em; }
+    .stage p { margin: 0; color: var(--muted); line-height: 1.45; }
+
+    /* the role card */
+    .role { width: min(270px, 70vw); aspect-ratio: 5 / 7; perspective: 1000px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+    .role .in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.3,.9,.3,1.1); }
+    .role.open .in { transform: rotateY(180deg); }
+    .role .face { position: absolute; inset: 0; border-radius: 28px; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; box-shadow: 0 20px 50px rgba(20, 10, 60, .4); }
+    .role .back { background:
+        radial-gradient(circle at 50% 42%, rgba(255,255,255,.22) 0 20%, transparent 21%),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.07) 0 8px, transparent 8px 16px),
+        linear-gradient(145deg, #312e81, #7c3aed 55%, #db2777);
+      color: #fff; font-weight: 800; }
+    .role .back .q { font-size: 4rem; filter: drop-shadow(0 4px 10px rgba(0,0,0,.35)); }
+    .role .front { transform: rotateY(180deg); background: linear-gradient(160deg, #ffffff, #f1edff); color: #1e1b3a; }
+    .role .front.imp { background: linear-gradient(160deg, #450a0a, #991b1b 60%, #ef4444); color: #fff; }
+    .role .front small { font-size: .75rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+    .role .front .w { font-size: clamp(1.6rem, 8vw, 2.4rem); font-weight: 900; letter-spacing: -.02em; line-height: 1.1; word-break: break-word; }
+    .role .front .cat { font-size: .9rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: rgba(124, 58, 237, .12); }
+    .role .front.imp .cat { background: rgba(255,255,255,.18); }
+    .role .front .sus { font-size: 3.4rem; }
+    .seenrow { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .seenrow .avatar { width: 30px; height: 30px; opacity: .4; transition: opacity .3s, box-shadow .3s; }
+    .seenrow .avatar.ok { opacity: 1; box-shadow: 0 0 0 2px var(--ok); }
+
+    .order { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 8px; counter-reset: n; }
+    .order li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 16px; background: var(--glass-strong); border: 1px solid var(--glass-border); font-weight: 650; text-align: left; animation: rise .4s ease both; }
+    .order li::before { counter-increment: n; content: counter(n); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 850; background: var(--slot); }
+    .order li.first { box-shadow: 0 0 0 2px var(--accent), 0 8px 24px color-mix(in srgb, var(--accent) 30%, transparent); }
+    .order li.first::before { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+    .peek { font-size: .85rem; }
+
+    .votes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; width: 100%; }
+    .vote { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 10px; border-radius: 20px; border: 2px solid var(--glass-border); background: var(--glass-strong); font-weight: 700; transition: transform .15s, border-color .2s, box-shadow .2s; }
+    .vote:hover { transform: translateY(-2px); }
+    .vote .avatar { width: 46px; height: 46px; font-size: 1.1rem; }
+    .vote.on { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 35%, transparent); }
+    .vote .tick { font-size: .72rem; color: var(--ok); min-height: 1em; }
+    .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+    .options .btn { padding: 14px 10px; }
+
+    .result { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .result .r { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--glass-border); text-align: left; animation: rise .4s ease both; }
+    .result .r.imp { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 40%, transparent); }
+    .result .r .n { flex: 1; font-weight: 700; }
+    .result .r .v { font-size: .8rem; color: var(--muted); }
+    .result .r .pts { font-weight: 850; min-width: 28px; text-align: right; }
+    .result .r .plus { color: var(--ok); font-weight: 800; font-size: .85rem; }
+    .banner { font-size: clamp(1.6rem, 6vw, 2.2rem); font-weight: 900; letter-spacing: -.02em; animation: popin .6s cubic-bezier(.2,.9,.3,1.3) both; }
+    .banner.crew { color: var(--ok); } .banner.imp { color: var(--danger); }
+    .wordbox { font-size: 1rem; } .wordbox b { font-size: 1.3rem; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Imposter</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <span class="timer hidden" id="timer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div class="stage glass" id="stage"></div>
+  </section>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const send = msg => Shell.send(msg);
+    const esc = s => Shell.esc(s);
+    let viewKey = null, endAt = null;
+
+    window.GAME = {
+      kind: "imposter",
+      title: "Imposter",
+      minPlayers: 3,
+      noBots: true,
+      fan: [["ia", "🕵️"], ["ib", "🤫"], ["ic", "❓"], ["id", "🗳️"]].map(([c, e]) => Shell.card(c, `<span class="emo">${e}</span>`)).join(""),
+      settings: [
+        { key: "imposters", label: "Imposter", options: [[1, "1 Imposter"], [2, "2 Imposter (ab 5 Spielern)"]] },
+        { key: "hint", label: "Hinweis", options: [[1, "Imposter kennt die Kategorie"], [0, "Imposter weiß gar nichts"]] },
+        { key: "seconds", label: "Zeit", options: [[0, "Ohne Zeitlimit"], [120, "2 Minuten Hinweise"], [180, "3 Minuten Hinweise"], [300, "5 Minuten Hinweise"]] },
+      ],
+      render: () => render(),
+      finished: () => {
+        const g = Shell.game, ranked = [...g.players].sort((a, b) => b.total - a.total);
+        return { icon: "🕵️", title: ranked[0] ? `${ranked[0].id === Shell.me ? "Du hast" : ranked[0].name + " hat"} die meisten Punkte!` : "Spiel beendet",
+          sub: `<div class="result" style="margin-top:10px">${ranked.map(p => `<div class="r">${Shell.avatar(p)}<span class="n">${esc(p.name)}</span><span class="pts">${p.total}</span></div>`).join("")}</div>` };
+      },
+    };
+    const nameOf = (g, id) => (g.players.find(p => p.id === id) || {}).name || "?";
+    const me = () => Shell.game.players.find(p => p.id === Shell.me);
+
+    function roleCard(g, open) {
+      const imp = g.role === "imposter";
+      const front = imp
+        ? `<div class="face front imp"><div class="sus">🕵️</div><small>Du bist der</small><div class="w">IMPOSTER</div>
+            ${g.category ? `<div class="cat">Kategorie: ${esc(g.category)}</div>` : `<div class="cat">Kein Hinweis – hör gut zu!</div>`}
+            <p style="color:rgba(255,255,255,.8);font-size:.85rem">Lass dich nicht erwischen und finde das Wort heraus.</p></div>`
+        : `<div class="face front"><small>Das geheime Wort</small><div class="w">${esc(g.word || "")}</div><div class="cat">${esc(g.category || "")}</div>
+            <p style="font-size:.85rem">${g.imposter_count > 1 ? "Zwei von euch kennen" : "Einer von euch kennt"} das Wort nicht.</p></div>`;
+      return `<div class="role ${open ? "open" : ""}" id="role"><div class="in">
+        <div class="face back"><div class="q">❓</div><div>Tippen zum Aufdecken</div><small style="opacity:.75">Nur du darfst hinschauen</small></div>${front}</div></div>`;
+    }
+
+    function render() {
+      const g = Shell.game;
+      $("tableCode").textContent = `Code ${g.code} · Runde ${g.round}`;
+      $("leaveGame").onclick = Shell.leaveGame;
+      endAt = g.remaining == null ? null : Date.now() + g.remaining * 1000; tick();
+      const key = `${g.round}|${g.phase}|${g.state}`;
+      if (key !== viewKey) { viewKey = key; build(g); }
+      update(g);
+    }
+
+    function build(g) {
+      const host = g.host === Shell.me;
+      let html = "";
+      if (g.phase === "reveal") {
+        html = `<h2>Deine geheime Karte</h2>${roleCard(g, false)}
+          <button class="btn" id="seenBtn">Gesehen ✓</button>
+          <p>Warte, bis alle ihre Karte angeschaut haben.</p><div class="seenrow" id="seenRow"></div>`;
+      } else if (g.phase === "clues") {
+        html = `<h2>Hinweisrunde</h2>
+          <p>Reihum sagt jeder <b>ein Wort</b>, das zum geheimen Wort passt – nicht zu genau, sonst errät es der Imposter!</p>
+          <ul class="order">${g.order.map((id, i) => `<li class="${i === 0 ? "first" : ""}">${esc(nameOf(g, id))}${i === 0 ? " – beginnt" : ""}</li>`).join("")}</ul>
+          <button class="btn ghost peek" id="peekBtn">👁️ Meine Karte nochmal ansehen</button><div id="peekBox"></div>
+          ${host ? '<button class="btn" id="toVote">Zur Abstimmung</button>' : '<p>Der Gastgeber startet die Abstimmung, wenn ihr fertig seid.</p>'}`;
+      } else if (g.phase === "vote") {
+        html = `<h2>Wer ist der Imposter?</h2><p>Tippe auf die Person, die du verdächtigst. Du kannst deine Stimme ändern, bis alle abgestimmt haben.</p>
+          <div class="votes" id="votes"></div>`;
+      } else if (g.phase === "guess") {
+        const caughtMe = g.caught === Shell.me;
+        html = `<div class="banner imp">🚨 ${esc(nameOf(g, g.caught))} wurde enttarnt!</div>` + (caughtMe
+          ? `<p>Letzte Chance: Errätst du das geheime Wort, gewinnst du trotzdem.</p><div class="options">${g.options.map(o => `<button class="btn ghost" data-opt="${esc(o)}">${esc(o)}</button>`).join("")}</div>`
+          : `<p>${esc(nameOf(g, g.caught))} darf jetzt noch versuchen, das Wort zu erraten …</p><div class="trophy">🤔</div>`);
+      } else {
+        const crew = g.winner === "crew";
+        const imps = g.players.filter(p => p.imposter);
+        html = `<div class="banner ${crew ? "crew" : "imp"}">${crew ? "🎉 Die Crew gewinnt!" : "🕵️ " + (imps.length > 1 ? "Die Imposter gewinnen!" : "Der Imposter gewinnt!")}</div>
+          <p class="wordbox">Das Wort war <b>${esc(g.word || "")}</b> (${esc(g.category || "")})${g.guess ? ` · Tipp des Imposters: <b>${esc(g.guess)}</b>` : ""}</p>
+          <div class="result">${[...g.players].sort((a, b) => (b.imposter - a.imposter) || (b.votes || 0) - (a.votes || 0)).map(p => `
+            <div class="r ${p.imposter ? "imp" : ""}">${Shell.avatar(p)}<span class="n">${esc(p.name)}${p.imposter ? " 🕵️" : ""}</span>
+              <span class="v">${p.votes ? `${p.votes} Stimme${p.votes > 1 ? "n" : ""}` : ""}${p.vote ? ` · wählte ${esc(nameOf(g, p.vote))}` : ""}</span>
+              ${p.gained ? `<span class="plus">+${p.gained}</span>` : ""}<span class="pts">${p.total}</span></div>`).join("")}</div>
+          ${g.state === "playing" ? (host ? '<div class="row" style="justify-content:center"><button class="btn ghost" id="endGame">Spiel beenden</button><button class="btn" id="nextRound">Nächste Runde</button></div>' : '<p>Der Gastgeber startet die nächste Runde.</p>') : ""}`;
+        if (g.state === "playing") (crew ? Shell.confetti : () => {})();
+      }
+      $("stage").innerHTML = html;
+      const role = $("role");
+      if (role) role.onclick = () => role.classList.toggle("open");
+      if ($("seenBtn")) $("seenBtn").onclick = () => { $("role").classList.remove("open"); send({ t: "seen" }); };
+      if ($("peekBtn")) $("peekBtn").onclick = () => {
+        const box = $("peekBox");
+        if (box.innerHTML) { box.innerHTML = ""; return; }
+        box.innerHTML = roleCard(Shell.game, true);
+        box.querySelector(".role").onclick = () => box.innerHTML = "";
+      };
+      if ($("toVote")) $("toVote").onclick = () => send({ t: "to_vote" });
+      document.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { if (confirm(`„${b.dataset.opt}“ – sicher?`)) send({ t: "guess_word", word: b.dataset.opt }); });
+      if ($("nextRound")) $("nextRound").onclick = () => send({ t: "next_round" });
+      if ($("endGame")) $("endGame").onclick = () => send({ t: "end_game" });
+    }
+
+    function update(g) {
+      if ($("seenRow")) {
+        $("seenRow").innerHTML = g.players.map(p => Shell.avatar(p).replace('class="avatar"', `class="avatar ${p.seen ? "ok" : ""}" title="${esc(p.name)}"`)).join("");
+        const mine = me();
+        $("seenBtn").disabled = !!(mine && mine.seen);
+        if (mine && mine.seen) $("seenBtn").textContent = "Warte auf die anderen …";
+      }
+      if ($("votes")) {
+        $("votes").innerHTML = g.players.filter(p => p.id !== Shell.me).map(p => `
+          <button class="vote ${g.my_vote === p.id ? "on" : ""}" data-vote="${p.id}">${Shell.avatar(p)}<span>${esc(p.name)}</span>
+            <span class="tick">${p.voted ? "hat abgestimmt" : ""}</span></button>`).join("");
+        document.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => send({ t: "vote", id: b.dataset.vote }));
+      }
+    }
+
+    function tick() {
+      const g = Shell.game, el = $("timer");
+      if (!g || endAt == null || g.phase !== "clues") { el.classList.add("hidden"); return; }
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      el.classList.remove("hidden");
+      el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      el.classList.toggle("low", left <= 15);
+    }
+    setInterval(tick, 500);
+    Shell.start(window.GAME);
+  </script>
+</body>
+</html>

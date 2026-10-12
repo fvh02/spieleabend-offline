@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Punchline</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .prompt { font-size: clamp(1.25rem, 4.8vw, 1.8rem); font-weight: 800; line-height: 1.35; letter-spacing: -.01em; }
+    .tvmain .prompt { font-size: clamp(2rem, 4vw, 4.6rem); }
+    .pchoice.mine { border-style: dashed; }
+    .pchoice .votes { display: inline-block; margin-top: 8px; font-size: .8rem; font-weight: 850; padding: 3px 10px; border-radius: 999px; background: var(--glass); }
+    .pchoice.best .votes { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
+    .hall { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; text-align: left; }
+    .hall div { padding: 10px 12px; border-radius: 14px; background: var(--glass-strong); font-size: .9rem; line-height: 1.35; }
+    .hall small { display: block; color: var(--muted); font-size: .75rem; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Punchline</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    let editing = false;
+
+    function mine(g, ctx) {
+      if (ctx.tv) return "";
+      if (g.my_answer && !editing) return `<p class="pdone">✓ „${esc(g.my_answer)}“</p><button class="btn ghost small" id="edit">Ändern</button>`;
+      return Party.form("jokeForm", "Deine Pointe", "Abschicken", 80);
+    }
+    const bindForm = () => Party.onForm("jokeForm", v => { editing = false; Shell.send({ t: "write", text: v }); });
+    const hall = g => g.hall.length ? `<div class="hall">${g.hall.map(h => `<div><small>${esc(h.prompt)}</small>„${esc(h.text)}“ – <b>${esc(h.name)}</b></div>`).join("")}</div>` : "";
+
+    Party.start({
+      kind: "punchline", title: "Punchline", art: "punchline", minPlayers: 3, icon: "😂",
+      inputPhases: ["write", "vote"],
+      settings: [
+        { key: "rounds", label: "Runden", options: [[6, "6 Runden"], [4, "4 Runden"], [8, "8 Runden"], [10, "10 Runden"]] },
+        { key: "seconds", label: "Zeit", options: [[75, "75 Sekunden"], [60, "60 Sekunden"], [120, "2 Minuten"], [0, "Ohne Zeitlimit"]] },
+      ],
+      build(g, ctx) {
+        editing = false;
+        if (g.phase === "write") return `<div class="prompt">${Party.gap(g.prompt)}</div>
+          <p>${ctx.tv ? "Alle schreiben ihre lustigste Pointe …" : "Schreib die lustigste Ergänzung – anonym, abgestimmt wird danach."}</p>
+          <div id="mine" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px"></div><div data-status></div>`;
+        if (g.phase === "vote") return `<div class="prompt">${Party.gap(g.prompt)}</div>
+          <p>Welche Pointe ist die beste?</p>
+          <div class="pchoices">${g.entries.map((e, i) => ctx.tv
+            ? `<div class="pchoice" style="animation-delay:${i * 70}ms">${esc(e.text)}</div>`
+            : `<button class="pchoice ${e.mine ? "mine" : ""}" data-vote="${e.id}" ${e.mine ? "disabled" : ""} style="animation-delay:${i * 70}ms">${esc(e.text)}${e.mine ? "<small>deine Pointe</small>" : ""}</button>`).join("")}</div>
+          <div data-status></div>`;
+        const list = [...g.entries].sort((a, b) => b.votes - a.votes);
+        return `<div class="prompt">${Party.gap(g.prompt)}</div>
+          ${list.length ? `<div class="pchoices">${list.map((e, i) => `<div class="pchoice ${e.best ? "best" : ""}" style="animation-delay:${i * 120}ms">
+            ${e.best ? "😂 " : ""}${esc(e.text)}<span class="by">${esc(Party.nameOf(g, e.author))}</span>
+            <span class="votes">${e.votes} Stimme${e.votes === 1 ? "" : "n"}</span></div>`).join("")}</div>` : "<p>Diesmal hat niemand etwas geschrieben.</p>"}
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Punktestand</h3>${Party.ranking(g, { gained: true })}`}
+          <p class="pmuted">100 Punkte pro Stimme · +100 für die allein beste Pointe</p>`;
+      },
+      celebrate: g => g.entries.some(e => e.best && e.author === Shell.me),
+      bind(g) {
+        document.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => Shell.send({ t: "vote", id: b.dataset.vote }));
+      },
+      update(g, ctx) {
+        if (g.phase === "write" && Party.set("mine", mine(g, ctx))) {
+          bindForm();
+          const e = document.getElementById("edit");
+          if (e) e.onclick = () => { editing = true; Party.set("mine", mine(g, ctx)); bindForm(); };
+        }
+        document.querySelectorAll("[data-vote]").forEach(b => b.classList.toggle("on", b.dataset.vote === g.my_pick));
+      },
+      finishedExtra: g => hall(g),
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Lügenbaron</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .fact { font-size: clamp(1.25rem, 4.8vw, 1.8rem); font-weight: 800; line-height: 1.35; letter-spacing: -.01em; }
+    .fact .fill { color: var(--ok); }
+    .tvmain .fact { font-size: clamp(2rem, 4vw, 4.6rem); }
+    .stamp { display: inline-block; font-size: .72rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-top: 8px; }
+    .stamp.ok { background: var(--ok); color: #fff; } .stamp.lie { background: var(--danger); color: #fff; }
+    .pchoice.mine { border-style: dashed; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Lügenbaron</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    let editing = false;
+
+    function mine(g, ctx) {
+      if (ctx.tv) return "";
+      if (g.my_answer && !editing) return `<p class="pdone">✓ Deine Lüge: „${esc(g.my_answer)}“</p><button class="btn ghost small" id="edit">Ändern</button>`;
+      return Party.form("lieForm", "Deine erfundene Antwort", "Lügen 🤥", 40);
+    }
+    const bindForm = () => Party.onForm("lieForm", v => { editing = false; Shell.send({ t: "write", text: v }); });
+
+    Party.start({
+      kind: "luegenbaron", title: "Lügenbaron", art: "luegenbaron", minPlayers: 3, icon: "🤥",
+      inputPhases: ["write", "pick"],
+      settings: [
+        { key: "rounds", label: "Runden", options: [[6, "6 Runden"], [4, "4 Runden"], [8, "8 Runden"], [10, "10 Runden"]] },
+        { key: "seconds", label: "Zeit", options: [[75, "75 Sekunden"], [60, "60 Sekunden"], [120, "2 Minuten"], [0, "Ohne Zeitlimit"]] },
+      ],
+      build(g, ctx) {
+        editing = false;
+        if (g.phase === "write") return `<div class="fact">${Party.gap(g.sentence)}</div>
+          <p>${ctx.tv ? "Jeder denkt sich eine glaubwürdige falsche Antwort aus …" : "Erfinde eine Antwort, die so echt klingt, dass die anderen darauf reinfallen."}</p>
+          <div id="mine" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px"></div><div data-status></div>`;
+        if (g.phase === "pick") return `<div class="fact">${Party.gap(g.sentence)}</div>
+          <p>${ctx.tv ? "Welche Antwort ist die Wahrheit?" : "Welche Antwort ist die Wahrheit? Tippe sie an."}</p>
+          <div class="pchoices">${g.options.map((o, i) => ctx.tv
+            ? `<div class="pchoice" style="animation-delay:${i * 70}ms">${esc(o.text)}</div>`
+            : `<button class="pchoice ${o.mine ? "mine" : ""}" data-pick="${o.id}" ${o.mine ? "disabled" : ""} style="animation-delay:${i * 70}ms">${esc(o.text)}${o.mine ? "<small>deine Lüge</small>" : ""}</button>`).join("")}</div>
+          <div data-status></div>`;
+        const opts = [...g.options].sort((a, b) => (a.truth - b.truth) || (a.pickers.length - b.pickers.length));
+        return `<div class="fact">${Party.gap(g.sentence, g.truth)}</div>
+          <div class="pchoices">${opts.map((o, i) => `<div class="pchoice ${o.truth ? "truth" : ""}" style="animation-delay:${i * 120}ms">
+            ${esc(o.text)}<br><span class="stamp ${o.truth ? "ok" : "lie"}">${o.truth ? "✓ Wahrheit" : "Lüge"}</span>
+            ${o.truth ? "" : `<span class="by">von ${esc(o.authors.map(a => Party.nameOf(g, a)).join(" & "))}</span>`}
+            ${o.pickers.length ? `<div class="who">${o.pickers.map(id => Shell.avatar(g.players.find(p => p.id === id) || { name: "?" })).join("")}</div>` : ""}</div>`).join("")}</div>
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Punktestand</h3>${Party.ranking(g, { gained: true })}`}
+          <p class="pmuted">Wahrheit gefunden: +2 · jeder, der auf deine Lüge reinfällt: +1</p>`;
+      },
+      celebrate: g => (g.players.find(p => p.id === Shell.me) || {}).gained >= 2,
+      bind(g) {
+        document.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => Shell.send({ t: "pick", id: b.dataset.pick }));
+      },
+      update(g, ctx) {
+        if (g.phase === "write" && Party.set("mine", mine(g, ctx))) {
+          bindForm();
+          const e = document.getElementById("edit");
+          if (e) e.onclick = () => { editing = true; Party.set("mine", mine(g, ctx)); bindForm(); };
+        }
+        document.querySelectorAll("[data-pick]").forEach(b => b.classList.toggle("on", b.dataset.pick === g.my_pick));
+      },
+    });
+  </script>
+</body>
+</html>

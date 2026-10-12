@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Tiefpunkt</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <style>
+    /* card faces by value */
+    .card.n2 { --c1: #a78bfa; --c2: #4c1d95; }
+    .card.n1 { --c1: #818cf8; --c2: #3730a3; }
+    .card.z  { --c1: #67e8f9; --c2: #0e7490; }
+    .card.g  { --c1: #4ade80; --c2: #15803d; }
+    .card.y  { --c1: #fcd34d; --c2: #b45309; }
+    .card.r  { --c1: #fb7185; --c2: #be123c; }
+    .card.n2 .front, .card.n1 .front { background: linear-gradient(160deg, #f5f3ff 0%, #ede9fe 100%); }
+    .card .v.neg { font-size: calc(var(--w) * .44); }
+    .card .back {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.22) 0 16%, transparent 17%),
+        repeating-linear-gradient(-45deg, rgba(255,255,255,.08) 0 6px, transparent 6px 12px),
+        linear-gradient(145deg, #0ea5e9, #6366f1 55%, #a855f7);
+    }
+
+    /* grids */
+    .grid { display: grid; grid-template-columns: repeat(4, auto); gap: var(--gap, 8px); justify-content: center; }
+    .grid .gone { width: var(--cw); height: calc(var(--cw) * 1.42); position: relative; }
+    .opp .grid { --cw: 26px; --gap: 4px; }
+    .opp .grid .card .tl, .opp .grid .card .br { display: none; }
+    .opp .grid .card .v { font-size: calc(var(--w) * .5); }
+    .opp .grid .card .v.neg { font-size: calc(var(--w) * .38); }
+    .opp .sums { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); margin-top: 8px; }
+    .opp.done { box-shadow: 0 0 0 2px #facc15, var(--glass-shadow); }
+    .me .grid { --cw: clamp(54px, 13vw, 78px); --gap: clamp(6px, 1.6vw, 12px); }
+    .me .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+    .me .head b { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .me .head span { font-size: .9rem; color: var(--muted); }
+    .me .head span strong { color: var(--text); }
+    .center { --cw: clamp(58px, 14vw, 90px); gap: clamp(14px, 4vw, 36px); }
+    .pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .pile .plabel { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .pile .deckstack { position: relative; }
+    .pile .deckstack .card:nth-child(1) { position: absolute; transform: translate(4px, 4px) rotate(3deg); opacity: .7; }
+    .pile .deckstack .card:nth-child(2) { position: absolute; transform: translate(2px, 2px) rotate(1.5deg); opacity: .85; }
+    .drawn .card { transform: rotate(-4deg); }
+    .drawn.empty-spot { visibility: hidden; }
+    .ready-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+    .ready-dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+    /* round summary */
+    .scores { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: .95rem; }
+    .scores th { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 6px; text-align: right; }
+    .scores th:first-child, .scores td:first-child { text-align: left; }
+    .scores td { padding: 8px 6px; border-top: 1px solid var(--glass-border); text-align: right; }
+    .scores tr.best td { font-weight: 800; }
+    .scores .dbl { color: var(--danger); font-size: .75rem; font-weight: 700; margin-left: 4px; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Tiefpunkt</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div class="opponents" id="opponents"></div>
+    <div class="felt glass">
+      <div class="center" id="center"></div>
+      <div class="status" id="status"></div>
+      <div class="log" id="log"></div>
+    </div>
+    <div class="me glass" id="me"></div>
+  </section>
+
+  <div class="overlay hidden" id="roundEnd">
+    <div class="panel glass" style="max-width:440px">
+      <h3 id="roundTitle" style="font-size:1.5rem;margin:4px 0"></h3>
+      <table class="scores" id="roundTable"></table>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button class="btn" id="nextRound">Nächste Runde</button>
+      </div>
+      <p class="empty" id="roundWait"></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const send = msg => Shell.send(msg);
+    const esc = s => Shell.esc(s);
+    let before = {};   // element positions before the last re-render, for flying cards
+
+    function tone(v) { return v <= -2 ? "n2" : v < 0 ? "n1" : v === 0 ? "z" : v <= 4 ? "g" : v <= 8 ? "y" : "r"; }
+    function label(v) { return v < 0 ? "−" + -v : String(v); }
+    function cardHtml(v, cls = "", attrs = "") {
+      if (v === null || v === undefined) return Shell.card(`facedown ${cls}`, "", attrs);
+      const t = label(v);
+      return Shell.card(`${tone(v)} ${cls}`, `<span class="tl">${t}</span><span class="v ${v < 0 ? "neg" : ""}">${t}</span><span class="br">${t}</span>`, attrs);
+    }
+
+    window.GAME = {
+      kind: "tiefpunkt",
+      title: "Tiefpunkt",
+      fan: [-2, 0, 5, 12].map(v => cardHtml(v)).join(""),
+      settings: [{ key: "target", label: "Spielende bei Punkten", options: [
+        [100, "Spielende bei 100 Punkten"], [50, "Spielende bei 50 Punkten (kurz)"], [150, "Spielende bei 150 Punkten"]] }],
+      render: fromServer => { if (fromServer) remember(); showTable(fromServer); },
+      finished: () => {
+        const g = Shell.game;
+        const mine = g.players.find(p => p.id === Shell.me);
+        return {
+          title: g.winner ? (mine && g.winner === mine.name ? "Du hast gewonnen!" : `${g.winner} gewinnt!`) : "Spiel beendet",
+          sub: scoreTable(g, true) + (g.host === Shell.me ? "" : '<p class="empty">Der Gastgeber kann ein neues Spiel starten.</p>'),
+        };
+      },
+    };
+
+    // positions of cards before the DOM is replaced
+    function remember() {
+      before = {};
+      document.querySelectorAll("[data-key]").forEach(el => { before[el.dataset.key] = Shell.rect(el); });
+    }
+
+    function scoreTable(g, final) {
+      const rs = g.round_scores || {};
+      const ranked = [...g.players].sort((a, b) => a.total - b.total);
+      return `<table class="scores">
+        <tr><th>Spieler</th><th>Runde</th><th>Gesamt</th></tr>
+        ${ranked.map((p, i) => `<tr class="${i === 0 ? "best" : ""}">
+          <td>${i === 0 && final ? "🏆 " : ""}${esc(p.name)}</td>
+          <td>${rs.scores && p.id in rs.scores ? rs.scores[p.id] : "–"}${rs.doubled === p.id ? '<span class="dbl">×2</span>' : ""}</td>
+          <td>${p.total}</td></tr>`).join("")}
+      </table>`;
+    }
+
+    function showTable(fromServer) {
+      const g = Shell.game, me = Shell.me;
+      const mine = g.players.find(p => p.id === me);
+      const playing = g.state === "playing";
+      const myTurn = playing && g.phase === "turn" && g.turn === me;
+      const setup = playing && g.phase === "setup";
+      $("tableCode").textContent = `Code ${g.code} · Runde ${g.round}`;
+
+      // opponents
+      $("opponents").innerHTML = g.players.filter(p => p.id !== me).map(p => `
+        <div class="opp glass ${g.turn === p.id ? "turn" : ""} ${g.ender === p.id ? "done" : ""}" data-opp="${p.id}">
+          <div class="head">${Shell.avatar(p)}<span class="n">${esc(p.name)}</span>
+            ${setup ? `<span class="ready-dot ${p.ready ? "on" : ""}" title="${p.ready ? "bereit" : "deckt auf"}"></span>`
+              : g.turn === p.id && playing ? '<span class="thinking"><i></i><i></i><i></i></span>' : ""}</div>
+          <div class="grid">${p.grid.map((c, i) => slotHtml(p.id, c, i, "mini")).join("")}</div>
+          <div class="sums"><span>offen ${p.visible}</span><span>gesamt ${p.total}</span></div>
+        </div>`).join("");
+
+      // centre: deck, drawn card, discard
+      const canDraw = myTurn && g.drawn === null && !g.must_flip;
+      const canDrop = myTurn && g.drawn !== null && g.drawn_from === "deck";
+      const holder = g.players.find(p => p.id === g.turn);
+      $("center").innerHTML = `
+        <div class="pile">
+          <div class="plabel">Stapel · ${g.deck_count}</div>
+          <div class="deckstack ${canDraw ? "target" : ""}" data-act="draw" data-key="deck">${cardHtml(null)}${cardHtml(null)}${cardHtml(null, canDraw ? "pick" : "")}</div>
+        </div>
+        <div class="pile drawn ${g.drawn === null ? "empty-spot" : ""}">
+          <div class="plabel">${holder && g.drawn !== null ? (holder.id === me ? "Deine Karte" : esc(holder.name)) : "&nbsp;"}</div>
+          <div data-key="drawn">${g.drawn !== null ? cardHtml(g.drawn) : cardHtml(0)}</div>
+        </div>
+        <div class="pile">
+          <div class="plabel">Ablage</div>
+          <div data-act="${canDraw ? "take" : canDrop ? "drop" : ""}" data-key="discard">${g.discard_top !== null ? cardHtml(g.discard_top, canDraw || canDrop ? "pick target" : "") : '<div class="slot"></div>'}</div>
+        </div>`;
+
+      // status
+      const st = $("status");
+      const mineReady = mine && mine.ready;
+      let text = "", mineFlag = false;
+      if (setup) { text = mineReady ? "Warte, bis alle 2 Karten aufgedeckt haben …" : "Decke 2 deiner Karten auf"; mineFlag = !mineReady; }
+      else if (myTurn) {
+        mineFlag = true;
+        text = g.must_flip ? "Decke eine verdeckte Karte auf"
+          : g.drawn === null ? "Ziehe vom Stapel oder nimm die oberste Ablagekarte"
+          : g.drawn_from === "deck" ? "Tausche die Karte gegen eine deiner Karten – oder lege sie ab und decke eine auf"
+          : "Tausche die Karte gegen eine deiner Karten";
+      } else if (playing && g.phase === "turn" && holder) text = `${holder.name} ist dran …`;
+      else if (g.phase === "round_end") text = "Runde vorbei";
+      if (playing && g.ender && g.phase === "turn") text += " · letzte Runde!";
+      st.textContent = text;
+      st.classList.toggle("mine", mineFlag);
+      st.classList.toggle("glass", !mineFlag && !!text);
+      $("log").textContent = g.log.slice(-2).join(" · ");
+
+      // my grid
+      if (mine) {
+        const pickable = c => c && (
+          (setup && !mineReady && !c.up) ||
+          (myTurn && g.drawn !== null) ||
+          (myTurn && g.must_flip && !c.up));
+        $("me").classList.toggle("turn", myTurn || (setup && !mineReady));
+        $("me").innerHTML = `
+          <div class="head"><b>Deine Karten</b><span>offen <strong>${mine.visible}</strong> · gesamt <strong>${mine.total}</strong></span></div>
+          <div class="grid" id="myGrid">${mine.grid.map((c, i) => slotHtml(me, c, i, pickable(c) ? "pick target" : "", `data-slot="${i}"`)).join("")}</div>`;
+      }
+
+      // round summary
+      const showRound = playing && g.phase === "round_end";
+      $("roundEnd").classList.toggle("hidden", !showRound);
+      if (showRound) {
+        $("roundTitle").textContent = `Runde ${g.round} vorbei`;
+        $("roundTable").outerHTML = scoreTable(g, false).replace('<table class="scores">', '<table class="scores" id="roundTable">');
+        $("nextRound").classList.toggle("hidden", g.host !== me);
+        $("roundWait").textContent = g.host === me ? "" : "Warte auf den Gastgeber …";
+      }
+
+      if (fromServer) animate(mine);
+    }
+
+    function slotHtml(pid, c, i, cls = "", attrs = "") {
+      const key = `data-key="${pid}-${i}"`;
+      if (c === null) return `<div class="gone" ${key}></div>`;
+      return cardHtml(c.up ? c.v : null, cls, `${key} ${attrs}`);
+    }
+
+    // ---------- animations: compare the previous state with the new one ----------
+    function animate(mine) {
+      const g = Shell.game, prev = Shell.prev, me = Shell.me;
+      const el = key => document.querySelector(`[data-key="${key}"]`);
+      if (!prev || prev.round !== g.round) {
+        // new round: deal every grid
+        document.querySelectorAll(".grid").forEach(grid =>
+          grid.querySelectorAll(".card").forEach((c, i) => { c.classList.add("deal"); c.style.animationDelay = i * 40 + "ms"; }));
+        return;
+      }
+      // a card was drawn: fly it from the deck (flipping) or from the discard pile
+      if (prev.drawn === null && g.drawn !== null) {
+        const card = el("drawn").querySelector(".card");
+        if (g.drawn_from === "deck") { card.classList.add("flip"); Shell.fly(card, before.deck); }
+        else Shell.fly(card, before.discard);
+      }
+      for (const p of g.players) {
+        const old = prev.players.find(q => q.id === p.id);
+        if (!old) continue;
+        const actor = prev.turn === p.id;
+        p.grid.forEach((c, i) => {
+          const o = old.grid[i];
+          const node = el(`${p.id}-${i}`);
+          if (!node) return;
+          if (c === null && o !== null) { Shell.burst(node, "✓"); return; }
+          if (!c || !o) return;
+          const swapped = actor && prev.drawn !== null && g.drawn === null && !g.must_flip && c.up && (o.v !== c.v || !o.up) && prev.phase === "turn";
+          if (swapped && !(prev.must_flip)) Shell.fly(node, before.drawn);
+          else if (c.up && !o.up) node.classList.add("flip");
+        });
+      }
+      // a card went onto the discard pile
+      if (prev.discard_top !== g.discard_top || prev.deck_count !== g.deck_count) {
+        const d = el("discard").querySelector(".card");
+        if (d && prev.discard_top !== g.discard_top) {
+          if (prev.drawn !== null && g.drawn === null && g.must_flip) Shell.fly(d, before.drawn);  // dropped the drawn card
+          else d.classList.add("drop");
+        }
+      }
+    }
+
+    // ---------- input ----------
+    $("center").addEventListener("click", e => {
+      const target = e.target.closest("[data-act]");
+      if (target && target.dataset.act) send({ t: target.dataset.act });
+    });
+    $("me").addEventListener("click", e => {
+      const g = Shell.game;
+      const slot = e.target.closest("[data-slot]");
+      if (!slot || !g || g.state !== "playing") return;
+      const i = +slot.dataset.slot;
+      if (g.phase === "setup" || g.must_flip) send({ t: "flip", index: i });
+      else if (g.drawn !== null) send({ t: "swap", index: i });
+    });
+    $("nextRound").onclick = () => send({ t: "next_round" });
+    $("leaveGame").onclick = () => Shell.leaveGame();
+  </script>
+  <script>Shell.start(window.GAME);</script>
+</body>
+</html>

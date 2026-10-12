@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Galgenraten</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <style>
+    .card.ga { --c1: #a78bfa; --c2: #5b21b6; } .card.gb { --c1: #f472b6; --c2: #9d174d; }
+    .card.gc { --c1: #60a5fa; --c2: #1e40af; } .card.gd { --c1: #34d399; --c2: #065f46; }
+    #table { align-items: center; }
+    #table > * { width: 100%; max-width: 820px; }
+    .topbar .timer { font-family: ui-monospace, monospace; font-weight: 800; padding: 5px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--glass-border); }
+    .timer.low { color: #fff; background: linear-gradient(135deg, #f97316, #ef4444); border-color: transparent; }
+    .people { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; justify-content: safe center; }
+    .chip { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 8px; border-radius: 999px; font-weight: 700; font-size: .9rem; transition: box-shadow .3s, transform .3s; }
+    .chip .avatar { width: 26px; height: 26px; font-size: .72rem; }
+    .chip.turn { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent); transform: translateY(-2px); }
+    .chip .pts { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .chip .plus { color: var(--ok); font-size: .78rem; animation: pop 1.5s ease both; position: relative; }
+
+    .stage { border-radius: 28px; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .gallows { width: min(220px, 52vw); height: auto; color: var(--text); }
+    .gallows .part { fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+    .gallows .part.on { opacity: 1; }
+    .gallows .part.draw { stroke-dasharray: 100; stroke-dashoffset: 100; animation: draw .7s ease forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .gallows .ghost { fill: none; stroke: var(--slot); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 2 10; }
+    .gallows.shake { animation: shake .45s; }
+    @keyframes shake { 20%, 60% { transform: translateX(-7px) rotate(-1deg); } 40%, 80% { transform: translateX(7px) rotate(1deg); } }
+    .lives { font-size: .85rem; color: var(--muted); font-weight: 700; }
+    .hintchip { font-size: .85rem; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--glass-border); }
+
+    .word { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; max-width: 100%; }
+    .wpart { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+    .lt { width: var(--t, 44px); height: calc(var(--t) * 1.2); perspective: 500px; }
+    .lt .in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3,.9,.3,1.1); }
+    .lt .f, .lt .b { position: absolute; inset: 0; border-radius: 10px; display: grid; place-items: center; backface-visibility: hidden; -webkit-backface-visibility: hidden; font-weight: 850; font-size: calc(var(--t) * .58); }
+    .lt .f { background: var(--glass); border: 2px solid var(--glass-border); }
+    .lt .b { transform: rotateY(180deg); background: linear-gradient(160deg, #ffffff, #efeaff); color: #4c1d95; box-shadow: 0 4px 12px rgba(30,20,80,.25); }
+    .lt.open .in { transform: rotateY(180deg); }
+    .lt.missed .b { background: linear-gradient(160deg, #fecaca, #fca5a5); color: #7f1d1d; }
+    .lt.faded .b { opacity: .45; }
+    .lt.dash { width: 10px; display: grid; place-items: center; font-weight: 850; font-size: 1.4rem; }
+    .wrong { min-height: 1.4em; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .wrong span { font-weight: 800; color: var(--danger); text-decoration: line-through; opacity: .85; }
+
+    .status { text-align: center; font-weight: 650; padding: 8px 16px; border-radius: 999px; }
+    .status.mine { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+    .keys { display: flex; flex-direction: column; gap: 6px; align-items: center; user-select: none; }
+    .krow { display: flex; gap: 5px; justify-content: center; width: 100%; }
+    .key { flex: 1; max-width: 46px; height: 50px; border-radius: 12px; font-weight: 800; font-size: 1.05rem; background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); }
+    .key:disabled { cursor: default; }
+    .key.hit { background: linear-gradient(150deg, #34d399, #047857); color: #fff; border-color: transparent; }
+    .key.miss { background: #374151; color: rgba(255,255,255,.45); border-color: transparent; }
+    .keys.off .key:not(.hit):not(.miss) { opacity: .55; }
+    .solve-row { display: flex; gap: 8px; width: 100%; max-width: 520px; }
+    .solve-row input { flex: 1; min-width: 0; }
+    .choose { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 480px; }
+    .choose input { font-size: 1.1rem; }
+    .secret-note { font-size: .8rem; color: var(--muted); text-align: center; }
+    .scores { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: .95rem; }
+    .scores th { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 6px; text-align: right; }
+    .scores th:first-child, .scores td:first-child { text-align: left; }
+    .scores td { padding: 8px 6px; border-top: 1px solid var(--glass-border); text-align: right; }
+    .bigword { font-size: clamp(1.3rem, 6vw, 2.4rem); font-weight: 900; letter-spacing: .04em; margin: 4px 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Galgenraten</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <span class="timer hidden" id="timer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div class="people" id="people"></div>
+    <div class="stage glass" id="stage"></div>
+  </section>
+
+  <div class="overlay hidden" id="roundEnd">
+    <div class="panel glass" style="max-width:420px">
+      <div class="trophy" id="reIcon">🎉</div>
+      <h3 id="reTitle" style="font-size:1.4rem"></h3>
+      <div class="bigword" id="reWord"></div>
+      <div id="reTable"></div>
+      <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" id="nextRound">Nächstes Wort</button></div>
+      <p class="empty" id="reWait"></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const send = msg => Shell.send(msg);
+    const esc = s => Shell.esc(s);
+    const ROWS = ["QWERTZUIOPÜ", "ASDFGHJKLÖÄ", "YXCVBNM"];
+    // gallows parts in the order they appear (10 wrong guesses)
+    const PARTS = [
+      "M20 230 H150", "M50 230 V20", "M50 20 H140", "M140 20 V30",
+      "M140 48 m-18 0 a18 18 0 1 0 36 0 a18 18 0 1 0 -36 0", "M140 84 V150",
+      "M140 100 L112 128", "M140 100 L168 128", "M140 150 L116 192", "M140 150 L164 192",
+    ];
+    let viewKey = null, shownFails = 0, lastSeq = null;
+
+    window.GAME = {
+      kind: "galgenraten",
+      title: "Galgenraten",
+      minPlayers: 1,
+      art: "galgenraten",
+      fan: [["ga", "G"], ["gb", "A"], ["gc", "L"], ["gd", "G"]].map(([c, l]) => Shell.card(c, `<span class="v">${l}</span>`)).join(""),
+      settings: [
+        { key: "source", label: "Wörter", options: [[1, "Spieler denken sich Wörter aus"], [0, "Zufallswörter mit Kategorie"]] },
+        { key: "words", label: "Anzahl", options: [[5, "5 Wörter"], [3, "3 Wörter"], [8, "8 Wörter"]] },
+      ],
+      render: () => render(),
+      finished: () => {
+        const g = Shell.game, ranked = [...g.players].sort((a, b) => b.total - a.total);
+        return { icon: "🏆", title: ranked[0] && ranked[0].id === Shell.me ? "Du hast gewonnen!" : `${ranked[0] ? ranked[0].name : "?"} gewinnt!`, sub: scoreTable(g) };
+      },
+    };
+
+    function scoreTable(g) {
+      const ranked = [...g.players].sort((a, b) => b.total - a.total);
+      return `<table class="scores"><tr><th>Spieler</th><th>Dieses Wort</th><th>Punkte</th></tr>${ranked.map(p => `
+        <tr><td>${p.id === g.solver ? "🏅 " : ""}${esc(p.name)}</td><td>${p.gained ? "+" + p.gained : "–"}</td><td>${p.total}</td></tr>`).join("")}</table>`;
+    }
+    const nameOf = (g, id) => (g.players.find(p => p.id === id) || {}).name || "?";
+
+    function gallowsSvg(fails, animateFrom) {
+      return `<svg class="gallows" id="gallows" viewBox="0 0 190 240">
+        ${PARTS.map(d => `<path class="ghost" d="${d}"/>`).join("")}
+        ${PARTS.map((d, i) => `<path pathLength="100" class="part ${i < fails ? "on" : ""} ${i < fails && i >= animateFrom ? "draw" : ""}" d="${d}" style="animation-delay:${(i - animateFrom) * .25}s"/>`).join("")}
+      </svg>`;
+    }
+
+    function render() {
+      const g = Shell.game, me = Shell.me;
+      $("tableCode").textContent = `Code ${g.code} · Wort ${g.round}/${g.rounds}`;
+      $("leaveGame").onclick = Shell.leaveGame;
+      $("people").innerHTML = g.players.map(p => `<div class="chip glass ${g.turn === p.id ? "turn" : ""}">${Shell.avatar(p)}
+        <span>${esc(p.name)}${p.id === me ? " (du)" : ""}</span>${p.id === g.setter ? "<span title='denkt sich das Wort aus'>✍️</span>" : ""}
+        <span class="pts">${p.total}</span></div>`).join("");
+
+      const key = `${g.round}|${g.phase}`;
+      if (key !== viewKey) { viewKey = key; if (g.phase !== "guess") shownFails = g.fails; build(g); }
+      if (g.phase === "guess") update(g);
+      endAt = g.remaining == null ? null : Date.now() + g.remaining * 1000; tick();
+
+      const showEnd = g.state === "playing" && g.phase === "round_end";
+      $("roundEnd").classList.toggle("hidden", !showEnd);
+      if (showEnd) {
+        const solved = !!g.solver;
+        $("reIcon").textContent = solved ? "🎉" : "🪢";
+        $("reTitle").textContent = solved ? `${g.solver === me ? "Du hast" : nameOf(g, g.solver) + " hat"} das Wort gelöst!` : "Der Galgen ist fertig!";
+        $("reWord").textContent = g.pattern.join("");
+        $("reTable").innerHTML = scoreTable(g);
+        $("nextRound").classList.toggle("hidden", g.host !== me);
+        $("reWait").textContent = g.host === me ? "" : "Warte auf den Gastgeber …";
+        if (solved && lastSeq !== g.last.seq) Shell.confetti();
+      }
+      lastSeq = g.last && g.last.seq;
+    }
+
+    function build(g) {
+      const me = Shell.me;
+      if (g.phase === "choose") {
+        if (g.setter === me) {
+          $("stage").innerHTML = `<h2 style="margin:0">Du bist dran: Denk dir ein Wort aus</h2>
+            <div class="choose">
+              <input id="wordIn" maxlength="30" placeholder="Geheimes Wort, z. B. Achterbahn" autocomplete="off" autocapitalize="characters" type="password">
+              <label class="empty" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="showWord" style="width:auto"> Wort anzeigen</label>
+              <input id="hintIn" maxlength="40" placeholder="Hinweis (optional), z. B. Freizeitpark" autocomplete="off">
+              <div class="row" style="justify-content:center"><button class="btn ghost" id="randomBtn">🎲 Zufallswort</button><button class="btn" id="setBtn">Los geht's</button></div>
+              <p class="secret-note">Halte dein Handy so, dass niemand mitliest 😉</p>
+            </div>`;
+          $("showWord").onchange = e => $("wordIn").type = e.target.checked ? "text" : "password";
+          $("setBtn").onclick = () => send({ t: "set_word", word: $("wordIn").value, hint: $("hintIn").value });
+          $("wordIn").onkeydown = e => { if (e.key === "Enter") $("setBtn").click(); };
+          $("randomBtn").onclick = () => send({ t: "random_word" });
+        } else {
+          $("stage").innerHTML = `<div class="trophy">✍️</div><h2 style="margin:0">${esc(nameOf(g, g.setter))} denkt sich ein Wort aus …</h2>`;
+        }
+        return;
+      }
+      $("stage").innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center">
+          ${g.hint ? `<span class="hintchip">💡 ${esc(g.hint)}</span>` : ""}<span class="lives" id="lives"></span></div>
+        <div id="gallowsBox"></div>
+        <div class="word" id="word"></div>
+        <div class="wrong" id="wrong"></div>
+        <div class="status" id="status"></div>
+        <div class="keys" id="keys">${ROWS.map(r => `<div class="krow">${[...r].map(k => `<button class="key" data-k="${k}">${k}</button>`).join("")}</div>`).join("")}</div>
+        <div class="solve-row" id="solveRow"><input id="solveIn" maxlength="30" placeholder="Ganzes Wort lösen …" autocomplete="off"><button class="btn" id="solveBtn">Lösen</button></div>`;
+      $("keys").onclick = e => { const k = e.target.closest("[data-k]"); if (k && !k.disabled) send({ t: "letter", letter: k.dataset.k }); };
+      $("solveBtn").onclick = () => { const w = $("solveIn").value.trim(); if (w && confirm(`„${w}“ lösen? Falsch kostet 2 Leben.`)) { send({ t: "solve", word: w }); $("solveIn").value = ""; } };
+      $("solveIn").onkeydown = e => { if (e.key === "Enter") $("solveBtn").click(); };
+      $("gallowsBox").innerHTML = gallowsSvg(g.fails, g.fails);
+    }
+
+    function update(g) {
+      const me = Shell.me, myTurn = g.turn === me, setter = g.setter === me;
+      // gallows: draw only the new parts
+      if (g.fails !== shownFails) {
+        $("gallowsBox").innerHTML = gallowsSvg(g.fails, shownFails);
+        if (g.fails > shownFails) { const s = $("gallows"); s.classList.add("shake"); }
+        shownFails = g.fails;
+      }
+      $("lives").textContent = `❤️ ${g.max_fails - g.fails} Leben`;
+      // word tiles
+      const old = [...document.querySelectorAll("#word .lt[data-i]")].map(el => el.classList.contains("open"));
+      const parts = []; let cur = [];
+      g.pattern.forEach((ch, i) => {
+        if (ch === " ") { parts.push(cur); cur = []; return; }
+        if (ch === "-") { cur.push(`<div class="lt dash">-</div>`); return; }
+        const guessed = ch !== null && g.guessed.includes(ch);
+        const open = ch !== null && (!setter || guessed);
+        const label = ch || "";
+        cur.push(`<div class="lt ${open || setter ? "open" : ""} ${setter && !guessed ? "faded" : ""}" data-i="${i}"><div class="in"><div class="f"></div><div class="b">${esc(label)}</div></div></div>`);
+      });
+      parts.push(cur);
+      // tiles shrink so the longest part of the word fits on one line
+      const longest = Math.max(...parts.map(p => p.length), 1);
+      $("word").style.setProperty("--t", `max(30px, min(48px, calc((min(100vw, 820px) - 64px) / ${longest} - 5px)))`);
+      $("word").innerHTML = parts.map(p => `<div class="wpart">${p.join("")}</div>`).join("");
+      // newly opened tiles flip in (start closed, then open)
+      document.querySelectorAll("#word .lt[data-i]").forEach((el, n) => {
+        if (el.classList.contains("open") && old.length && old[n] === false) {
+          el.classList.remove("open"); void el.offsetWidth; setTimeout(() => el.classList.add("open"), 30 + n * 60);
+        }
+      });
+      $("wrong").innerHTML = g.wrong.map(l => `<span>${esc(l)}</span>`).join("");
+      // keyboard
+      document.querySelectorAll("#keys .key").forEach(k => {
+        const l = k.dataset.k;
+        k.classList.toggle("hit", g.guessed.includes(l)); k.classList.toggle("miss", g.wrong.includes(l));
+        k.disabled = !myTurn || g.guessed.includes(l) || g.wrong.includes(l);
+      });
+      $("keys").classList.toggle("off", !myTurn);
+      $("keys").classList.toggle("hidden", setter);
+      $("solveRow").classList.toggle("hidden", !myTurn);
+      const st = $("status");
+      st.className = "status" + (myTurn ? " mine" : "");
+      st.textContent = setter ? `Das ist dein Wort – die anderen raten (${nameOf(g, g.turn)} ist dran)`
+        : myTurn ? "Du bist dran – wähle einen Buchstaben" : `${nameOf(g, g.turn)} ist dran`;
+      const ev = g.last || {};
+      if (ev.seq !== lastSeq && ev.kind === "hit" && ev.by !== me) Shell.toast(`${nameOf(g, ev.by)}: „${ev.letter}“ ✓ ${ev.n}×`);
+      if (ev.seq !== lastSeq && ev.kind === "miss" && ev.by !== me) Shell.toast(`${nameOf(g, ev.by)}: „${ev.letter}“ ✗`);
+      if (ev.seq !== lastSeq && ev.kind === "wrong_solve") Shell.toast(`${nameOf(g, ev.by)}: „${ev.word}“ ist falsch (−2 Leben)`);
+    }
+
+    let endAt = null;
+    function tick() {
+      const g = Shell.game, el = $("timer");
+      if (!g || endAt == null || g.phase === "round_end" || g.state !== "playing") { el.classList.add("hidden"); return; }
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      el.classList.remove("hidden");
+      el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      el.classList.toggle("low", left <= 10);
+    }
+    setInterval(tick, 500);
+    document.addEventListener("keydown", e => {
+      const g = Shell.game;
+      if (!g || g.phase !== "guess" || g.turn !== Shell.me || document.activeElement.tagName === "INPUT" || e.ctrlKey || e.metaKey) return;
+      const k = e.key.toUpperCase();
+      if (/^[A-ZÄÖÜ]$/.test(k) && !g.guessed.includes(k) && !g.wrong.includes(k)) send({ t: "letter", letter: k });
+    });
+    $("nextRound").onclick = () => send({ t: "next_round" });
+    Shell.start(window.GAME);
+  </script>
+</body>
+</html>

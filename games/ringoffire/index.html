@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Ring of Fire</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .card.red { --c1: #f43f5e; --c2: #9f1239; } .card.black { --c1: #475569; --c2: #0f172a; }
+    .card.rf .v { font-size: calc(var(--w) * .5); }
+    .card.rf .suit { position: relative; z-index: 1; display: block; text-align: center; font-size: calc(var(--w) * .26); color: var(--c2); margin-top: calc(var(--w) * -.06); }
+    .card.rf .front { place-content: center; display: grid; }
+    .big { --cw: min(170px, 42vw); }
+    .tvmain .big { --cw: 15vw; }
+    .drawn { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .drawn .card { animation: deal .7s cubic-bezier(.2,.9,.3,1.2) both; }
+    @keyframes deal { from { transform: translateY(-40px) rotate(-14deg) scale(.7); opacity: 0; } }
+    .rulebox h2 { margin: 0; } .rulebox p { margin: 6px 0 0; }
+    .deck { position: relative; width: 120px; height: 170px; border: 0; background: none; padding: 0; }
+    .deck i { position: absolute; inset: 0; border-radius: 18px; border: 1px solid rgba(255,255,255,.35);
+      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.22) 0 18%, transparent 19%), repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 6px, transparent 6px 12px), linear-gradient(145deg, #6d28d9, #db2777);
+      box-shadow: 0 8px 20px rgba(20, 10, 60, .3); }
+    .deck i:nth-child(2) { transform: translate(4px, -4px); } .deck i:nth-child(3) { transform: translate(8px, -8px); display: grid; place-items: center; color: #fff; font-weight: 850; font-size: 1.05rem; font-style: normal; }
+    .deck:hover i:nth-child(3) { transform: translate(8px, -14px); }
+    .deck.my { animation: wiggle 1.6s ease-in-out infinite; }
+    @keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .stats span { padding: 6px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--glass-border); font-weight: 750; font-size: .9rem; }
+    .history { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; --cw: 34px; }
+    .rules { width: 100%; text-align: left; display: grid; grid-template-columns: 34px 1fr; gap: 4px 10px; font-size: .88rem; }
+    .rules b { text-align: center; }
+    details { width: 100%; } summary { cursor: pointer; color: var(--muted); font-weight: 700; }
+    .tvmain .stats span { font-size: 1.4vw; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Ring of Fire</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    const RED = new Set(["♥", "♦"]);
+    const card = (c, extra = "") => Shell.card(`rf ${RED.has(c.suit) ? "red" : "black"} ${extra}`, `<span class="v">${esc(c.rank)}</span><span class="suit">${c.suit}</span>`);
+    const nm = (g, id) => id === Shell.me ? "Du" : Party.nameOf(g, id);
+    const ROLE = { "5": "👍 Daumenmeister", "8": "🤝 Trinkpartner gewählt von", "D": "❓ Fragemeister" };
+    Party.start({
+      kind: "ringoffire", title: "Ring of Fire", minPlayers: 2, icon: "👑", drink: true,
+      fan: [["A", "♠"], ["K", "♥"], ["7", "♣"], ["D", "♦"]].map(([r, s]) => card({ rank: r, suit: s })).join(""),
+      inputPhases: ["draw"], skipLabel: "⏭ Für die Person ziehen", endAnytime: true,
+      key: g => g.left,
+      head: g => `Noch ${g.left} Karten`,
+      settings: [],
+      build(g, ctx) {
+        const active = g.players.find(p => p.id === g.active) || { name: "?" }, mine = g.active === Shell.me;
+        const c = g.card;
+        return `<div class="stats"><span>👑 Könige: ${g.kings} / 4</span><span>🃏 ${g.left} übrig</span></div>
+          ${c ? `<div class="drawn">${card(c, "big")}<div class="rulebox"><h2>${esc(c.title)}</h2><p>${esc(c.rule)}</p>
+            <p class="pmuted">gezogen von ${esc(nm(g, g.drawn_by))}</p></div></div>` : `<p>Legt einen Becher in die Mitte – los geht's!</p>`}
+          <div class="turn" style="font-weight:800">${mine ? "Du bist dran – zieh eine Karte!" : `${esc(active.name)} ist dran`}</div>
+          ${mine && !ctx.tv ? `<button class="deck my" id="draw" aria-label="Karte ziehen"><i></i><i></i><i>Ziehen</i></button>` : ""}
+          ${Object.keys(g.holders).length ? `<div class="stats">${Object.entries(g.holders).map(([r, id]) => `<span>${ROLE[r]}: ${esc(nm(g, id))}</span>`).join("")}</div>` : ""}
+          ${g.history.length > 1 ? `<div class="history">${g.history.slice(1).map(h => card(h)).join("")}</div>` : ""}
+          ${ctx.tv ? "" : `<details><summary>Alle Regeln</summary><div class="rules">${Object.entries(g.rules).map(([r, t]) => `<b>${r}</b><span>${esc(t)}</span>`).join("")}</div></details>`}`;
+      },
+      bind() { const d = document.getElementById("draw"); if (d) d.onclick = () => { d.disabled = true; Shell.send({ t: "draw" }); }; },
+      finished: g => ({ icon: g.kings >= 4 ? "👑" : "🃏", title: g.kings >= 4 ? `${Party.nameOf(g, g.drawn_by)} trinkt den King's Cup!` : "Alle Karten gezogen",
+        sub: g.card ? `<div style="display:flex;justify-content:center;margin-top:10px">${card(g.card, "big")}</div>` : "" }),
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Schätzmeister</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .unit { font-size: .9rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--glass-border); }
+    .line { position: relative; width: 100%; height: 118px; margin: 6px 0 2px; }
+    .line .axis { position: absolute; left: 4%; right: 4%; top: 74px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); opacity: .5; }
+    .line .pin { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; animation: drop .6s cubic-bezier(.2,.9,.3,1.3) both; }
+    .line .pin .avatar { width: 30px; height: 30px; font-size: .75rem; }
+    .line .pin i { width: 2px; height: 30px; background: var(--muted); opacity: .5; }
+    .line .pin small { font-size: .7rem; font-weight: 750; white-space: nowrap; }
+        .line .goal { position: absolute; top: 46px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; z-index: 2; animation: popin .7s .5s cubic-bezier(.2,.9,.3,1.3) both; }
+    .line .goal b { width: 22px; height: 22px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 30%, transparent); display: grid; place-items: center; color: #fff; font-size: .8rem; }
+    .line .goal span { font-size: .75rem; font-weight: 850; color: var(--ok); margin-top: 6px; white-space: nowrap; }
+    @keyframes drop { from { transform: translate(-50%, -24px); opacity: 0; } }
+    .rank { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+    .rank .r { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--glass-border); text-align: left; animation: rise .4s ease both; }
+    .rank .r.top { box-shadow: 0 0 0 2px var(--ok); }
+    .rank .n { flex: 1; font-weight: 650; }
+    .rank .val { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .rank .off { font-size: .78rem; color: var(--muted); min-width: 70px; text-align: right; }
+    .rank .pts { font-weight: 850; color: var(--ok); min-width: 32px; text-align: right; }
+    .tvmain .line { height: 18vh; } .tvmain .rank .r { font-size: clamp(1rem, 1.6vw, 1.8rem); }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Schätzmeister</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    const fmt = (v, unit) => `${Party.num(v)}${unit ? " " + unit : ""}`;
+    let editing = false;
+
+    function line(g) {
+      const vals = g.ranking.map(r => r.value), a = g.answer;
+      const lo0 = Math.min(a, ...vals), hi0 = Math.max(a, ...vals);
+      // Keep wild guesses from squeezing the rest: clamp the scale around the answer.
+      const span = Math.abs(a) || 1, lo = Math.max(lo0, a - span * 3), hi = Math.min(hi0, a + span * 3);
+      const pad = (hi - lo) * .08 || span * .2, min = lo - pad, max = hi + pad;
+      const x = v => 4 + 92 * (Math.min(max, Math.max(min, v)) - min) / (max - min);
+      return `<div class="line"><div class="axis"></div>
+        ${g.ranking.map((r, i) => { const p = g.players.find(q => q.id === r.id) || { name: "?" };
+          return `<div class="pin" style="left:${x(r.value)}%;top:${(i % 3) * 18}px;animation-delay:${i * 90}ms" title="${esc(p.name)}: ${Party.num(r.value)}">${Shell.avatar(p)}<i style="height:${40 - (i % 3) * 18}px"></i></div>`; }).join("")}
+        <div class="goal" style="left:${x(a)}%"><b>✓</b><span>${fmt(a, g.unit)}</span></div></div>`;
+    }
+
+    function mine(g, ctx) {
+      if (ctx.tv) return "";
+      if (g.my_answer != null && !editing)
+        return `<p class="pdone">✓ Dein Tipp: ${esc(fmt(g.my_answer, g.unit))}</p><button class="btn ghost small" id="edit">Ändern</button>`;
+      return Party.form("guessForm", "Deine Schätzung", "Tippen", 20, "decimal");
+    }
+
+    Party.start({
+      kind: "schaetzmeister", title: "Schätzmeister", art: "schaetzmeister", minPlayers: 2, icon: "🎯",
+      inputPhases: ["guess"],
+      settings: [
+        { key: "rounds", label: "Runden", options: [[8, "8 Fragen"], [5, "5 Fragen"], [10, "10 Fragen"], [15, "15 Fragen"]] },
+        { key: "seconds", label: "Zeit", options: [[45, "45 Sekunden"], [30, "30 Sekunden"], [60, "60 Sekunden"], [0, "Ohne Zeitlimit"]] },
+      ],
+      build(g, ctx) {
+        editing = false;
+        if (g.phase === "guess") return `<h2>${esc(g.question)}</h2>${g.unit ? `<span class="unit">Antwort in ${esc(g.unit)}</span>` : ""}
+          <div id="mine" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px"></div>
+          <div data-status></div>${ctx.tv ? "<p>Schätzt auf euren Handys!</p>" : ""}`;
+        const top = g.ranking[0];
+        return `<p>${esc(g.question)}</p><div class="pbig">${esc(fmt(g.answer, g.unit))}</div>${g.note ? `<p>${esc(g.note)}</p>` : ""}
+          ${g.ranking.length ? line(g) : ""}
+          <div class="rank">${g.ranking.map((r, i) => { const p = g.players.find(q => q.id === r.id) || { name: "?" };
+            const off = g.answer ? (r.value - g.answer) / Math.abs(g.answer) * 100 : 0;
+            return `<div class="r ${r.rank === 1 ? "top" : ""}" style="animation-delay:${i * 60}ms">${Shell.avatar(p)}<span class="n">${esc(p.name)}${r.exact ? " 🎯" : ""}</span>
+              <span class="val">${Party.num(r.value)}</span><span class="off">${r.exact ? "Volltreffer!" : (off > 0 ? "+" : "") + Party.num(Math.round(off)) + " %"}</span>
+              <span class="pts">${r.points ? "+" + r.points : ""}</span></div>`; }).join("") || "<p>Niemand hat getippt.</p>"}</div>
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Punktestand</h3>${Party.ranking(g, { gained: true })}`}`;
+      },
+      celebrate: (g, ctx) => g.ranking.some(r => r.exact) || (g.ranking[0] && g.ranking[0].id === Shell.me),
+      update(g, ctx) {
+        if (g.phase !== "guess") return;
+        if (Party.set("mine", mine(g, ctx))) {
+          Party.onForm("guessForm", v => { editing = false; Shell.send({ t: "guess", value: v }); });
+          const e = document.getElementById("edit");
+          if (e) e.onclick = () => { editing = true; Party.set("mine", mine(g, ctx)); Party.onForm("guessForm", v => { editing = false; Shell.send({ t: "guess", value: v }); }); };
+        }
+      },
+    });
+  </script>
+</body>
+</html>

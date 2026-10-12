@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Spieleabend offline</title>
+  <meta name="theme-color" content="#0b0a1f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Spieleabend">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="games/static/icon-180.png">
+  <link rel="icon" type="image/png" href="games/static/icon-192.png">
+  <link rel="stylesheet" href="games/static/common.css">
+  <link rel="stylesheet" href="app/app.css">
+  <script src="games/static/art.js"></script>
+  <script src="vendor/qr/qrcode.js"></script>
+  <script src="vendor/qr/jsQR.js"></script>
+  <script src="app/net.js"></script>
+  <script src="app/qr.js"></script>
+</head>
+<body>
+  <div class="backdrop"><i></i><i></i><i></i><i></i></div>
+
+  <!-- start -->
+  <section class="screen" id="scr-start">
+    <header class="hero">
+      <h1>Spieleabend</h1>
+      <p>Offline – ohne Internet und ohne Server</p>
+    </header>
+    <div class="panel glass">
+      <p class="label">Dein Name</p>
+      <input id="name" maxlength="20" placeholder="z. B. Alex" autocomplete="nickname">
+    </div>
+    <div class="choices">
+      <button class="choice glass" id="beHost"><span>🎲</span><b>Spiel leiten</b><small>Dein Handy ist der Gastgeber – die Spiele laufen darauf</small></button>
+      <button class="choice glass" id="beGuest"><span>📲</span><b>Mitspielen</b><small>Code vom Gastgeber scannen</small></button>
+    </div>
+    <button class="btn ghost solo" id="solo">🔤 Wortgitter allein spielen</button>
+    <div class="panel glass hint">
+      <b>So geht's:</b> Alle Handys ins selbe WLAN – oder ins Hotspot-Netz eines Handys. Internet ist nicht nötig.
+      Der Gastgeber zeigt einen QR-Code, jeder Mitspieler scannt ihn und zeigt seinen eigenen Code zurück.
+      <div class="status" id="offlineStatus"></div>
+    </div>
+  </section>
+
+  <!-- host: the evening -->
+  <section class="screen hidden" id="scr-host">
+    <div class="bar glass"><button class="btn ghost small" id="hostBack">← Beenden</button><span class="spacer"></span><span class="engine" id="engineState">Spiele werden geladen …</span></div>
+    <div class="panel glass">
+      <h2>Dabei</h2>
+      <ul class="devices" id="devices"></ul>
+      <button class="btn" id="addGuest">＋ Mitspieler verbinden</button>
+    </div>
+    <div class="panel glass">
+      <h2>Spiel wählen</h2>
+      <div class="filters"><select id="typeFilter">
+        <option value="">Alle Spiele</option><option value="karten">🃏 Kartenspiele</option><option value="zeichnen">✏️ Zeichnen</option>
+        <option value="woerter">🔤 Wörter</option><option value="quiz">🧠 Quiz</option><option value="party">🎉 Party</option><option value="trinken">🍻 Trinkspiele</option>
+      </select><span class="devcount" id="fitInfo"></span></div>
+      <div class="games" id="gameList"></div>
+    </div>
+  </section>
+
+  <!-- guest: join -->
+  <section class="screen hidden" id="scr-join">
+    <div class="bar glass"><button class="btn ghost small" id="joinBack">← Zurück</button></div>
+    <div class="panel glass center" id="joinStep1">
+      <h2>1 · Code des Gastgebers scannen</h2>
+      <div class="scanner" id="joinScanner"></div>
+      <details class="paste"><summary>Kamera geht nicht? Code einfügen</summary>
+        <textarea id="joinPaste" rows="3" placeholder="SPO1…"></textarea><button class="btn small" id="joinPasteBtn">Übernehmen</button></details>
+    </div>
+    <div class="panel glass center hidden" id="joinStep2">
+      <h2>2 · Zeig diesen Code <span id="joinHostName">dem Gastgeber</span></h2>
+      <div class="qrbox" id="joinQr"><div class="spinner"></div></div>
+      <p class="muted">Der Gastgeber scannt ihn mit „Mitspieler verbinden“.</p>
+      <button class="btn ghost small" id="joinShare">Code teilen / kopieren</button>
+      <p class="muted" id="joinState"></p>
+    </div>
+  </section>
+
+  <!-- guest: waiting for a game -->
+  <section class="screen hidden" id="scr-wait">
+    <div class="bar glass"><button class="btn ghost small" id="waitLeave">← Verlassen</button><span class="spacer"></span><span class="engine ok" id="waitConn">● verbunden</span></div>
+    <div class="panel glass center">
+      <div class="big">🎲</div>
+      <h2 id="waitTitle">Verbunden!</h2>
+      <p class="muted" id="waitText">Warte, bis der Gastgeber ein Spiel auswählt.</p>
+      <button class="btn hidden" id="rejoin">Zurück ins Spiel</button>
+    </div>
+    <div class="panel glass"><h2>Dabei</h2><ul class="devices" id="guestDevices"></ul></div>
+    <button class="btn ghost solo" id="solo2">🔤 Solange Wortgitter spielen</button>
+  </section>
+
+  <!-- the game itself -->
+  <div class="play hidden" id="play">
+    <iframe id="frame" title="Spiel" allow="fullscreen"></iframe>
+    <button class="menubtn" id="menuBtn" title="Menü">☰</button>
+    <div class="spectate hidden glass" id="spectate">
+      <div class="big">👀</div><h2>Das Spiel läuft schon</h2>
+      <p class="muted">Beim nächsten Spiel bist du dabei.</p><button class="btn" id="spectateBack">Zur Übersicht</button>
+    </div>
+  </div>
+
+  <!-- host: pairing dialog -->
+  <div class="modal hidden" id="pair">
+    <div class="panel glass center">
+      <div id="pairStep1">
+        <h2>1 · Mitspieler scannt diesen Code</h2>
+        <div class="qrbox" id="pairQr"><div class="spinner"></div></div>
+        <p class="muted">Auf dem anderen Handy: App öffnen → „Mitspielen“.</p>
+        <div class="row center"><button class="btn ghost small" id="pairShare">Code teilen / kopieren</button><button class="btn" id="pairNext">Weiter: Antwort scannen →</button></div>
+      </div>
+      <div id="pairStep2" class="hidden">
+        <h2>2 · Antwort-Code scannen</h2>
+        <div class="scanner" id="pairScanner"></div>
+        <details class="paste"><summary>Kamera geht nicht? Code einfügen</summary>
+          <textarea id="pairPaste" rows="3" placeholder="SPO1…"></textarea><button class="btn small" id="pairPasteBtn">Übernehmen</button></details>
+      </div>
+      <div id="pairStep3" class="hidden"><div class="big">✅</div><h2 id="pairDone"></h2>
+        <div class="row center"><button class="btn ghost" id="pairMore">Noch jemanden verbinden</button><button class="btn" id="pairClose">Fertig</button></div></div>
+      <p class="pairerr" id="pairErr"></p>
+      <button class="x" id="pairX" aria-label="Schließen">×</button>
+    </div>
+  </div>
+
+  <div class="toast glass" id="toast"></div>
+  <script src="app/app.js"></script>
+</body>
+</html>

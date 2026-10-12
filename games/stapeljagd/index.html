@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Stapeljagd</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <style>
+    .card.c1 { --c1: #60a5fa; --c2: #4338ca; }
+    .card.c2 { --c1: #34d399; --c2: #047857; }
+    .card.c3 { --c1: #fb7185; --c2: #be123c; }
+    .card.joker .front { background: linear-gradient(145deg, #fb923c 0%, #ec4899 55%, #8b5cf6 100%); border-color: rgba(255,255,255,.5); }
+    .card.joker .front::after { background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.35), transparent 65%); }
+    .card.joker .v {
+      background: none; color: #fff; font-size: calc(var(--w) * .22); text-align: center; letter-spacing: .02em; line-height: 1.05;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,.25));
+    }
+    .card.joker .v b { display: block; font-size: 1.5em; line-height: 1; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Stapeljagd</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div class="opponents" id="opponents"></div>
+    <div class="felt glass">
+      <div class="center" id="center"></div>
+      <div class="status" id="status"></div>
+      <div class="log" id="log"></div>
+    </div>
+    <div class="me glass" id="me"></div>
+  </section>
+
+  <script>
+    const JOKER = 0;
+    let selected = null;
+    let pendingFrom = null;  // where the card I just played came from, to fly it to its target
+    const $ = id => document.getElementById(id);
+    const send = msg => Shell.send(msg);
+    const esc = s => Shell.esc(s);
+    const avatar = p => Shell.avatar(p);
+    const fly = (el, r) => Shell.fly(el, r);
+    const burst = (box, text) => Shell.burst(box, text);
+
+    function colorClass(v) { return v === JOKER ? "joker" : v <= 4 ? "c1" : v <= 8 ? "c2" : "c3"; }
+    function cardHtml(v, cls = "", attrs = "", badge = null) {
+      if (v === null || v === undefined) return `<div class="slot ${cls}" ${attrs}></div>`;
+      const front = v === JOKER
+        ? `<span class="v"><b>★</b>JOKER</span>`
+        : `<span class="tl">${v}</span><span class="v">${v}</span><span class="br">${v}</span>`;
+      return Shell.card(`${colorClass(v)} ${cls}`, front, attrs, badge ? `<span class="as">${badge}</span>` : "");
+    }
+    const backHtml = (cls = "") => Shell.card(`facedown ${cls}`, "");
+    const topOf = arr => arr.length ? arr[arr.length - 1] : null;
+    const fits = (card, pile) => pile.length < 12 && (card === JOKER || card === pile.length + 1);
+
+    window.GAME = {
+      kind: "stapeljagd",
+      title: "Stapeljagd",
+      fan: [1, 5, 9, JOKER].map(v => cardHtml(v)).join(""),
+      settings: [{ key: "stock", label: "Karten pro Spielerstapel", options: [
+        [0, "Stapel: automatisch (30, ab 5 Spielern 20)"], [10, "Stapel: 10 Karten (kurz)"], [20, "Stapel: 20 Karten"], [30, "Stapel: 30 Karten"]] }],
+      render: fromServer => { if (fromServer && (!Shell.prev || Shell.prev.turn !== Shell.game.turn)) selected = null; showTable(fromServer); },
+      finished: () => {
+        const mine = Shell.game.players.find(p => p.id === Shell.me);
+        const w = Shell.game.winner;
+        return {
+          title: w ? (mine && w === mine.name ? "Du hast gewonnen!" : `${w} gewinnt!`) : "Spiel beendet",
+          sub: Shell.game.host === Shell.me ? "" : "Der Gastgeber kann eine neue Runde starten.",
+        };
+      },
+      onError: () => { pendingFrom = null; },
+    };
+
+    function selectedCard(p) {
+      if (!selected) return null;
+      if (selected.src === "hand") return p.hand[selected.index];
+      if (selected.src === "stock") return p.stock_top;
+      return topOf(p.discards[selected.index]);
+    }
+
+    function showTable(fromServer = false) {
+      const game = Shell.game, me = Shell.me;
+      $("tableCode").textContent = "Code " + game.code;
+      const mine = game.players.find(p => p.id === me);
+      const myTurn = game.state === "playing" && game.turn === me;
+      const card = mine && selected ? selectedCard(mine) : null;
+
+      // opponents
+      $("opponents").innerHTML = game.players.filter(p => p.id !== me).map(p => `
+        <div class="opp glass ${game.turn === p.id ? "turn" : ""}" data-opp="${p.id}">
+          <div class="head">${avatar(p)}<span class="n">${esc(p.name)}</span>
+            ${game.turn === p.id && game.state === "playing" ? '<span class="thinking"><i></i><i></i><i></i></span>' : `<span class="h">✋ ${p.hand_count}</span>`}</div>
+          <div class="piles">
+            <div class="stockwrap" data-ostock="${p.id}">${cardHtml(p.stock_top, "mini")}<span class="count">${p.stock_count}</span></div>
+            ${p.discards.map((d, i) => `<div data-odisc="${p.id}-${i}">${cardHtml(topOf(d), "mini")}</div>`).join("")}
+          </div>
+        </div>`).join("");
+
+      // centre: draw pile and building piles
+      const piles = game.building.map((pile, i) => {
+        const t = topOf(pile);
+        const isTarget = myTurn && card !== null && card !== undefined && fits(card, pile);
+        const inner = t === null
+          ? `<div class="slot ${isTarget ? "target" : ""}" data-build="${i}">1 oder<br>Joker</div>`
+          : cardHtml(t, isTarget ? "target" : "", `data-build="${i}"`, t === JOKER ? "= " + pile.length : null);
+        return `<div class="bp" data-bp="${i}">${inner}</div>`;
+      }).join("");
+      $("center").innerHTML = `<div class="deck" id="deck">${backHtml()}${backHtml()}${backHtml()}<span class="count">${game.deck_count}</span></div>${piles}`;
+
+      // status line
+      const current = game.players.find(p => p.id === game.turn);
+      const st = $("status");
+      st.classList.toggle("mine", myTurn);
+      st.classList.toggle("glass", !myTurn && !!current);
+      if (myTurn) {
+        st.textContent = selected
+          ? (selected.src === "hand" ? "Auf eine Baufläche legen – oder auf deine Ablage, um den Zug zu beenden" : "Wähle eine Baufläche")
+          : "Du bist dran – Karte antippen, dann Ziel wählen";
+      } else st.textContent = current ? `${current.name} ist dran …` : "";
+      $("log").textContent = game.log.slice(-2).join(" · ");
+
+      // my area
+      if (mine) {
+        const sel = (src, i) => selected && selected.src === src && (src === "stock" || selected.index === i) ? "selected" : "";
+        const can = myTurn ? "pick" : "";
+        const discardTarget = myTurn && selected && selected.src === "hand";
+        $("me").classList.toggle("turn", myTurn);
+        $("me").innerHTML = `
+          <div class="zones">
+            <div class="zone stockzone">
+              <div class="zlabel">Dein Stapel</div>
+              <div class="stack" id="myStock">${mine.stock_count > 1 ? '<div class="ghost-card"></div>' : ""}${cardHtml(mine.stock_top, mine.stock_top !== null ? `${can} ${sel("stock")}` : "", 'data-src="stock"')}<span class="count">${mine.stock_count}</span></div>
+            </div>
+            <div class="zone">
+              <div class="zlabel">Ablage</div>
+              <div class="cards">${mine.discards.map((d, i) => `
+                <div class="stack" data-mydisc="${i}">
+                  ${d.length > 1 ? '<div class="ghost-card"></div>' : ""}
+                  ${cardHtml(topOf(d), `${topOf(d) !== null && myTurn && !discardTarget ? can : ""} ${sel("discard", i)} ${discardTarget ? "target" : ""}`, `data-src="discard" data-i="${i}"`)}
+                  ${d.length > 1 ? `<span class="count">${d.length}</span>` : ""}
+                </div>`).join("")}</div>
+            </div>
+            <div class="zone hand">
+              <div class="zlabel">Hand</div>
+              <div class="cards" id="hand">${mine.hand.length ? mine.hand.map((c, i) => cardHtml(c, `${can} ${sel("hand", i)}`, `data-src="hand" data-i="${i}"`)).join("")
+                : myTurn ? `<button class="btn" id="passBtn">Passen</button>` : `<span class="empty">keine Karten</span>`}</div>
+            </div>
+          </div>`;
+        const passBtn = $("passBtn");
+        if (passBtn) passBtn.onclick = () => send({ t: "pass" });
+      }
+
+      if (fromServer) animate(mine);
+
+    }
+
+    // ---------- animations: compare the previous state with the new one ----------
+    function animate(mine) {
+      const game = Shell.game, me = Shell.me, prev = Shell.prev;
+      const from = pendingFrom; pendingFrom = null;
+      if (!prev) {
+        // first view of a round: deal my hand and flip the stock cards
+        if (mine) document.querySelectorAll("#hand .card").forEach((c, i) => { c.classList.add("deal"); c.style.animationDelay = i * 70 + "ms"; });
+        document.querySelectorAll("#myStock .card, [data-ostock] .card").forEach(c => c.classList.add("flip"));
+        return;
+      }
+      const actorId = prev.turn;
+      const actorRect = () => {
+        if (actorId === me) return from;
+        const opp = document.querySelector(`[data-opp="${actorId}"]`);
+        return opp ? opp.getBoundingClientRect() : null;
+      };
+      // building piles: a card was added, or the pile reached 12 and was cleared
+      game.building.forEach((pile, i) => {
+        const old = prev.building[i];
+        const box = document.querySelector(`[data-bp="${i}"]`);
+        if (pile.length > old.length) fly(box.querySelector(".card"), actorRect());
+        else if (pile.length < old.length) burst(box, "12 ✓ fertig");
+      });
+      // stock tops: flip the newly revealed card
+      for (const p of game.players) {
+        const before = prev.players.find(q => q.id === p.id);
+        if (!before) continue;
+        if (p.stock_count < before.stock_count && p.stock_top !== null) {
+          const el = p.id === me ? document.querySelector("#myStock .card") : document.querySelector(`[data-ostock="${p.id}"] .card`);
+          if (el) el.classList.add("flip");
+        }
+        // discard piles that grew
+        p.discards.forEach((d, i) => {
+          if (d.length > before.discards[i].length) {
+            const el = p.id === me ? document.querySelector(`[data-mydisc="${i}"] .card`) : document.querySelector(`[data-odisc="${p.id}-${i}"] .card`);
+            if (p.id === me && from) fly(el, from); else if (el) el.classList.add("drop");
+          }
+        });
+      }
+      // newly drawn hand cards
+      if (mine) {
+        const before = prev.players.find(q => q.id === me);
+        const playedFromHand = before && from && from.src === "hand" ? 1 : 0;
+        const fresh = before ? mine.hand.length - (before.hand.length - playedFromHand) : 0;
+        if (fresh > 0) {
+          const cards = [...document.querySelectorAll("#hand .card")];
+          cards.slice(-fresh).forEach((c, i) => { c.classList.add("deal"); c.style.animationDelay = i * 80 + "ms"; });
+        }
+      }
+    }
+
+    // ---------- input ----------
+    $("me").addEventListener("click", e => {
+      const game = Shell.game, me = Shell.me;
+      if (!game || game.state !== "playing" || game.turn !== me) return;
+      const el = e.target.closest("[data-src]");
+      if (!el) return;
+      const src = el.dataset.src, i = +el.dataset.i || 0;
+      const mine = game.players.find(p => p.id === me);
+      if (src === "discard" && selected && selected.src === "hand") {
+        pendingFrom = { ...selected.rect, src: "hand" };
+        send({ t: "discard", index: selected.index, pile: i });
+        selected = null; return;
+      }
+      if (src === "stock" && mine.stock_top === null) return;
+      if (src === "discard" && !mine.discards[i].length) return;
+      const same = selected && selected.src === src && (src === "stock" || selected.index === i);
+      const r = el.getBoundingClientRect();
+      selected = same ? null : { src, index: i, rect: { left: r.left, top: r.top, width: r.width, height: r.height } };
+      showTable();
+    });
+    $("center").addEventListener("click", e => {
+      const game = Shell.game, me = Shell.me;
+      const el = e.target.closest("[data-build]");
+      if (!el || !selected || game.turn !== me) return;
+      pendingFrom = { ...selected.rect, src: selected.src };
+      send({ t: "play", src: selected.src, index: selected.index, pile: +el.dataset.build });
+      selected = null;
+    });
+
+
+    $("leaveGame").onclick = () => Shell.leaveGame();
+  </script>
+  <script>Shell.start(window.GAME);</script>
+</body>
+</html>

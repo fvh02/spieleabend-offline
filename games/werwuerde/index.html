@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Wer würde eher …?</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .lead { font-size: .8rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+    .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; width: 100%; }
+    .person { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; border-radius: 20px; border: 2px solid var(--glass-border);
+      background: var(--glass-strong); font-weight: 700; transition: transform .15s, border-color .2s, box-shadow .2s; animation: rise .35s ease both; }
+    .person:hover { transform: translateY(-2px); }
+    .person .avatar { width: 50px; height: 50px; font-size: 1.2rem; }
+    .person.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); transform: scale(1.03); }
+    .crown { font-size: 3.2rem; animation: bob 2s ease-in-out infinite; }
+    @keyframes bob { 50% { transform: translateY(-6px) rotate(-4deg); } }
+    .bars { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .bar { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; }
+    .bar .track { height: 34px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--glass-border); overflow: hidden; position: relative; }
+    .bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 12px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); animation: grow .9s cubic-bezier(.2,.9,.3,1) both; }
+    .bar.win .fill { background: linear-gradient(90deg, #f59e0b, #f97316); }
+    .bar .label { position: relative; z-index: 1; padding: 0 12px; line-height: 34px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar .cnt { font-weight: 850; min-width: 22px; text-align: right; }
+    .bar .voters { grid-column: 2 / 4; display: flex; gap: 4px; flex-wrap: wrap; margin-top: -4px; }
+    .bar .voters .avatar { width: 22px; height: 22px; font-size: .6rem; }
+    @keyframes grow { from { width: 0 !important; } }
+    .titles { width: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 12px; text-align: left; }
+    .titles div { padding: 8px 12px; border-radius: 12px; background: var(--glass-strong); font-size: .88rem; }
+    .titles b { color: var(--accent); }
+    .tvmain .person .avatar { width: 5vw; height: 5vw; font-size: 2vw; }
+    .tvmain .bar { grid-template-columns: 4vw minmax(0, 1fr) auto; } .tvmain .bar .avatar { width: 3.4vw; height: 3.4vw; }
+    .tvmain .bar .track { height: 4.2vw; } .tvmain .bar .label { line-height: 4.2vw; font-size: 1.8vw; } .tvmain .bar .cnt { font-size: 2vw; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Wer würde eher …?</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    const gamers = g => g.players.filter(p => !p.screen);
+    const titles = g => g.titles.length ? `<div class="titles">${g.titles.filter(t => t.names.length).map(t =>
+      `<div><b>${esc(t.names.join(" & "))}</b> ${esc(t.question.replace(/^…\s*/, "würde eher "))}</div>`).join("")}</div>` : "";
+
+    Party.start({
+      kind: "werwuerde", title: "Wer würde eher …?", art: "werwuerde", minPlayers: 3, icon: "👑",
+      inputPhases: ["vote"],
+      settings: [
+        { key: "rounds", label: "Fragen", options: [[10, "10 Fragen"], [5, "5 Fragen"], [15, "15 Fragen"], [20, "20 Fragen"]] },
+        { key: "seconds", label: "Zeit", options: [[30, "30 Sekunden"], [20, "20 Sekunden"], [45, "45 Sekunden"], [0, "Ohne Zeitlimit"]] },
+        { key: "anonymous", label: "Stimmen", options: [[1, "Geheime Abstimmung"], [0, "Offen – alle sehen, wer wen gewählt hat"]] },
+        { key: "points", label: "Punkte", options: [[1, "Punkt, wenn du mit der Mehrheit stimmst"], [0, "Ohne Punkte – nur Spaß"]] },
+      ],
+      build(g, ctx) {
+        if (g.phase === "vote") return `<span class="lead">Wer würde eher …</span><h2>${esc(g.question.replace(/^…\s*/, ""))}</h2>
+          ${ctx.tv ? "<p>Stimmt auf euren Handys ab!</p>" : `<div class="people">${gamers(g).map(p => `
+            <button class="person" data-vote="${p.id}">${Shell.avatar(p)}<span>${p.id === Shell.me ? "Ich" : esc(p.name)}</span></button>`).join("")}</div>`}
+          <div data-status></div>`;
+        const max = Math.max(1, ...Object.values(g.tally));
+        const top = Math.max(0, ...Object.values(g.tally));
+        const winners = gamers(g).filter(p => top && g.tally[p.id] === top);
+        const rows = gamers(g).filter(p => g.tally[p.id]).sort((a, b) => g.tally[b.id] - g.tally[a.id]);
+        return `<span class="lead">Wer würde eher …</span><h2>${esc(g.question.replace(/^…\s*/, ""))}</h2>
+          ${winners.length ? `<div class="crown">👑</div><div class="pbig">${esc(winners.map(p => p.id === Shell.me ? "Du!" : p.name).join(" & "))}</div>` : "<p>Niemand hat abgestimmt.</p>"}
+          <div class="bars">${rows.map((p, i) => `<div class="bar ${g.tally[p.id] === top ? "win" : ""}">${Shell.avatar(p)}
+            <div class="track"><div class="fill" style="width:${g.tally[p.id] / max * 100}%;animation-delay:${i * 120}ms"></div><span class="label">${esc(p.name)}</span></div>
+            <span class="cnt">${g.tally[p.id]}</span>
+            ${Object.keys(g.picks).length ? `<div class="voters">${gamers(g).filter(v => g.picks[v.id] === p.id).map(v => Shell.avatar(v)).join("")}</div>` : ""}</div>`).join("")}</div>
+          ${ctx.tv || !g.settings.points ? "" : `<h3 class="plabel" style="align-self:flex-start">Punktestand</h3>${Party.ranking(g, { gained: true })}`}`;
+      },
+      celebrate: g => !!g.tally[Shell.me],
+      bind(g) {
+        document.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => Shell.send({ t: "vote", id: b.dataset.vote }));
+      },
+      update(g) {
+        document.querySelectorAll("[data-vote]").forEach(b => b.classList.toggle("on", b.dataset.vote === g.my_pick));
+      },
+      finished: (g, ranked) => g.settings.points
+        ? { icon: "👑", title: ranked[0] && ranked[0].score ? `${ranked[0].id === Shell.me ? "Du kennst" : ranked[0].name + " kennt"} die Runde am besten!` : "Spiel beendet",
+            sub: Party.ranking(g) + titles(g) }
+        : { icon: "👑", title: "Das waren eure Titel", sub: titles(g) },
+    });
+  </script>
+</body>
+</html>

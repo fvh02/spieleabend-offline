@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Ich hab noch nie …</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .lead { font-size: .8rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Ich hab noch nie …</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    const sayIt = t => esc(t.replace(/^…\s*/, ""));
+    Party.start({
+      kind: "nochnie", title: "Ich hab noch nie …", art: "nochnie", minPlayers: 2, icon: "🍻", drink: true,
+      inputPhases: ["answer"], nextLabel: "Nächster Satz →",
+      settings: [
+        { key: "rounds", label: "Sätze", options: [[15, "15 Sätze"], [10, "10 Sätze"], [20, "20 Sätze"], [30, "30 Sätze"]] },
+        { key: "seconds", label: "Zeit", options: [[20, "20 Sekunden"], [15, "15 Sekunden"], [30, "30 Sekunden"], [0, "Ohne Zeitlimit"]] },
+        { key: "spicy", label: "Stufe", options: [[0, "Harmlos"], [1, "Mit frechen Sätzen"]] },
+      ],
+      build(g, ctx) {
+        if (g.phase === "answer") return `<span class="lead">Ich hab noch nie …</span><h2>${sayIt(g.statement)}</h2>
+          ${ctx.tv ? "<p>Antwortet geheim auf euren Handys!</p>" : `<div class="bigchoice">
+            <button class="yes" data-ans="1"><span>🍺</span>Hab ich schon</button><button data-ans="0"><span>😇</span>Nie</button></div>`}
+          <div data-status></div>`;
+        const drinkers = g.drinkers.map(id => g.players.find(p => p.id === id)).filter(Boolean);
+        return `<span class="lead">Ich hab noch nie …</span><h2>${sayIt(g.statement)}</h2>
+          ${drinkers.length ? `<div class="pbanner">🍻 Trinken!</div><div class="drinkers">${drinkers.map((p, i) =>
+            `<div class="d" style="animation-delay:${i * 90}ms">${Shell.avatar(p)}<span>${p.id === Shell.me ? "Du" : esc(p.name)}</span></div>`).join("")}</div>`
+            : `<div class="pbanner">😇 Niemand – alle bleiben trocken</div>`}
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Schlucke bisher</h3>${Party.ranking(g, { gained: true })}`}`;
+      },
+      bind() { document.querySelectorAll("[data-ans]").forEach(b => b.onclick = () => Shell.send({ t: "answer", yes: b.dataset.ans === "1" })); },
+      update(g) { document.querySelectorAll("[data-ans]").forEach(b => b.classList.toggle("on", g.my_answer != null && (b.dataset.ans === "1") === g.my_answer)); },
+      finished: (g, ranked) => ({ icon: "🍻", title: ranked[0] && ranked[0].score ? `${ranked[0].id === Shell.me ? "Du hast" : ranked[0].name + " hat"} am meisten erlebt!` : "Ihr seid ja brav!",
+        sub: Party.ranking(g) }),
+    });
+  </script>
+</body>
+</html>

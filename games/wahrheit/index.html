@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Wahrheit oder Trinken</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .turn { display: flex; align-items: center; gap: 12px; font-size: 1.2rem; font-weight: 800; }
+    .turn .avatar { width: 46px; height: 46px; font-size: 1.1rem; box-shadow: 0 0 0 3px var(--accent); }
+    .tvmain .turn { font-size: 2.4vw; } .tvmain .turn .avatar { width: 5vw; height: 5vw; font-size: 2vw; }
+    .swap { border: 0; background: none; color: var(--muted); font-weight: 700; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Wahrheit oder Trinken</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    const who = g => g.players.find(p => p.id === g.active) || { name: "?" };
+    Party.start({
+      kind: "wahrheit", title: "Wahrheit oder Trinken", art: "wahrheit", minPlayers: 2, icon: "🍺", drink: true,
+      inputPhases: ["turn"], nextLabel: "Nächste Person →", skipLabel: "🍺 Zeit um – trinken", endAnytime: false,
+      key: g => g.question,
+      isLast: g => g.turn >= g.total_turns,
+      canNext: g => g.active === Shell.me,
+      head: g => `Runde ${g.round} / ${g.rounds}`,
+      settings: [
+        { key: "rounds", label: "Runden", options: [[2, "2 Runden – jeder 2-mal dran"], [1, "1 Runde"], [3, "3 Runden"], [5, "5 Runden"]] },
+        { key: "seconds", label: "Zeit", options: [[0, "Ohne Zeitlimit"], [60, "60 Sekunden zum Antworten"], [90, "90 Sekunden zum Antworten"]] },
+      ],
+      build(g, ctx) {
+        const p = who(g), mine = g.active === Shell.me;
+        const turn = `<div class="turn">${Shell.avatar(p)}<span>${mine ? "Du bist dran!" : esc(p.name) + " ist dran"}</span></div>`;
+        if (g.phase === "turn") return `${turn}<div class="qcard">${esc(g.question)}</div>
+          ${mine && !ctx.tv ? `<div class="bigchoice"><button data-choice="truth"><span>😇</span>Ich antworte</button><button class="yes" data-choice="drink"><span>🍺</span>Ich trinke lieber</button></div>
+            <button class="swap" id="swap">Andere Frage</button>` : `<p>${ctx.tv ? "Ehrlich antworten – oder trinken!" : `Hör gut zu – ${esc(p.name)} antwortet laut oder trinkt.`}</p>`}`;
+        return `${turn}<div class="qcard" style="opacity:.75">${esc(g.question)}</div>
+          <div class="pbanner">${g.choice === "truth" ? `😇 ${mine ? "Du hast" : esc(p.name) + " hat"} ehrlich geantwortet` : `🍺 ${mine ? "Du trinkst" : esc(p.name) + " trinkt"}!`}</div>
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Getrunken statt geantwortet</h3>${Party.ranking(g, { gained: true })}`}`;
+      },
+      bind() {
+        document.querySelectorAll("[data-choice]").forEach(b => b.onclick = () => Shell.send({ t: "choose", choice: b.dataset.choice }));
+        const s = document.getElementById("swap"); if (s) s.onclick = () => Shell.send({ t: "new_question" });
+      },
+      finished: (g, ranked) => {
+        const honest = [...ranked].reverse()[0];
+        return { icon: "😇", title: honest ? `${honest.id === Shell.me ? "Du warst" : honest.name + " war"} am ehrlichsten!` : "Spiel beendet", sub: Party.ranking(g) };
+      },
+    });
+  </script>
+</body>
+</html>

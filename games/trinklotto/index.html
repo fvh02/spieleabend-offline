@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Trinklotto</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <link rel="stylesheet" href="../static/party.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <script src="../static/party.js"></script>
+  <style>
+    .mine { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+    .mine div { border-radius: 18px; padding: 12px 6px; background: var(--glass-strong); border: 1px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 750; }
+    .mine small { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 800; }
+    .mine .sw { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255,255,255,.4); }
+    .mine .num { font-size: 1.9rem; font-weight: 900; line-height: 34px; }
+    .mine .emo { font-size: 1.9rem; line-height: 34px; }
+    .callbox { width: 100%; padding: 22px 18px; border-radius: 24px; font-size: clamp(1.3rem, 5vw, 1.9rem); font-weight: 850; line-height: 1.3; color: #fff;
+      background: linear-gradient(150deg, #312e81, #7c3aed 55%, #db2777); box-shadow: 0 18px 40px rgba(20, 10, 60, .35); animation: popin .6s cubic-bezier(.2,.9,.3,1.3) both; }
+    .tvmain .callbox { font-size: clamp(2rem, 4.4vw, 5rem); padding: 3vw; }
+    .verdict { font-size: clamp(1.6rem, 7vw, 2.4rem); font-weight: 900; animation: popin .6s .25s cubic-bezier(.2,.9,.3,1.3) both; }
+    .verdict.drink { color: #f59e0b; } .verdict.give { color: var(--accent); } .verdict.safe { color: var(--ok); }
+    .verdict small { display: block; font-size: .9rem; color: var(--muted); font-weight: 650; margin-top: 4px; }
+    body:not(.tv) .stage-hit .pstage { box-shadow: 0 0 0 3px #f59e0b, var(--glass-shadow); }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Trinklotto</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+  <script>
+    const esc = s => Shell.esc(s);
+    Party.start({
+      kind: "trinklotto", title: "Trinklotto", art: "trinklotto", minPlayers: 2, timerPhases: ["reveal"], icon: "🎲", drink: true,
+      nextLabel: "Nächste Ansage →",
+      head: g => `Ansage ${g.round} / ${g.rounds}`,
+      settings: [
+        { key: "rounds", label: "Ansagen", options: [[20, "20 Ansagen"], [10, "10 Ansagen"], [30, "30 Ansagen"], [50, "50 Ansagen"]] },
+        { key: "seconds", label: "Tempo", options: [[0, "Gastgeber tippt weiter"], [15, "Automatisch alle 15 s"], [25, "Automatisch alle 25 s"], [40, "Automatisch alle 40 s"]] },
+      ],
+      build(g, ctx) {
+        const c = g.call, hit = c.hits.includes(Shell.me), m = g.mine;
+        const hitPlayers = c.hits.map(id => g.players.find(p => p.id === id)).filter(Boolean);
+        document.body.classList.toggle("stage-hit", hit && c.kind === "drink");
+        const verdict = ctx.tv ? "" : c.kind === "shuffle" ? `<div class="verdict give">🔀 Deine neuen Eigenschaften:</div>`
+          : hit ? (c.kind === "give" ? `<div class="verdict give">🎁 Du verteilst ${c.n}!<small>Such dir aus, wer trinkt.</small></div>`
+                                     : `<div class="verdict drink">🍺 Du trinkst ${c.n}!</div>`)
+          : `<div class="verdict safe">😇 Glück gehabt</div>`;
+        const mine = m && !ctx.tv ? `<div class="mine"><div><small>Farbe</small><span class="sw" style="background:${m.hex}"></span>${esc(m.color)}</div>
+          <div><small>Zahl</small><span class="num">${m.number}</span>&nbsp;</div><div><small>Tier</small><span class="emo">${m.emoji}</span>${esc(m.animal)}</div></div>` : "";
+        return `<div class="callbox">${esc(c.text)}</div>${verdict}${mine}
+          ${hitPlayers.length && c.kind !== "shuffle" ? `<div class="drinkers">${hitPlayers.map((p, i) => `<div class="d" style="animation-delay:${200 + i * 80}ms">${Shell.avatar(p)}<span>${p.id === Shell.me ? "Du" : esc(p.name)}</span></div>`).join("")}</div>` : ""}
+          ${ctx.tv ? "" : `<h3 class="plabel" style="align-self:flex-start">Schlucke bisher</h3>${Party.ranking(g, { gained: true })}`}`;
+      },
+      celebrate: () => false,
+      finished: (g, ranked) => ({ icon: "🎲", title: ranked[0] && ranked[0].score ? `${ranked[0].id === Shell.me ? "Du hattest" : ranked[0].name + " hatte"} das meiste Pech!` : "Spiel beendet", sub: Party.ranking(g) }),
+    });
+  </script>
+</body>
+</html>

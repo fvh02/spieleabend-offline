@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Wortgitter</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <style>
+    :root { --g2: #047857; --y2: #b45309; --x2: #374151; }
+    .wrap { max-width: 520px; margin: 0 auto; padding: 14px 12px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 100vh; animation: rise .5s ease both; }
+    .bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 18px; }
+    .bar .title { font-weight: 850; font-size: 1.25rem; background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .bar .spacer { flex: 1; }
+    .bar .home { padding: 5px 10px; font-size: .85rem; }
+    .icon { border: 1px solid var(--glass-border); background: var(--glass-strong); border-radius: 12px; width: 38px; height: 38px; display: grid; place-items: center; font-size: 1.05rem; }
+    .modes { display: flex; gap: 6px; padding: 4px; border-radius: 999px; align-self: center; }
+    .modes button { border: 0; background: none; padding: 8px 16px; border-radius: 999px; font-weight: 700; color: var(--muted); }
+    .modes button.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .sub { text-align: center; color: var(--muted); font-size: .85rem; margin-top: -4px; }
+
+    .board { display: grid; gap: 7px; justify-content: center; margin: 4px auto; --t: clamp(50px, 14.5vw, 64px); }
+    .brow { display: grid; grid-template-columns: repeat(5, var(--t)); gap: 7px; }
+    .brow.shake { animation: shake .45s; }
+    @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+    .tile { width: var(--t); height: var(--t); perspective: 600px; }
+    .tile .in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+    .tile .f, .tile .b {
+      position: absolute; inset: 0; border-radius: 14px; display: grid; place-items: center; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      font-weight: 850; font-size: calc(var(--t) * .5); text-transform: uppercase;
+    }
+    .tile .f { background: var(--glass); border: 2px solid var(--glass-border); color: var(--text); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .tile.typed .f { border-color: color-mix(in srgb, var(--accent) 75%, transparent); animation: typepop .12s ease both; }
+    @keyframes typepop { 50% { transform: scale(1.1); } }
+    .tile .b { transform: rotateX(180deg); color: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.35); text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+    .tile.g .b { background: linear-gradient(150deg, #34d399, var(--g2)); }
+    .tile.y .b { background: linear-gradient(150deg, #fbbf24, var(--y2)); }
+    .tile.x .b { background: linear-gradient(150deg, #9ca3af, var(--x2)); }
+    .tile.done .in { transform: rotateX(180deg); }
+    .tile.flip .in { animation: tflip .6s cubic-bezier(.3,.9,.3,1.1) both; }
+    @keyframes tflip { from { transform: rotateX(0); } to { transform: rotateX(180deg); } }
+    .brow.win .tile .in { animation: tflip .6s cubic-bezier(.3,.9,.3,1.1) both, jump .5s ease both; }
+    .brow.win .tile:nth-child(1) .in { animation-delay: 0s, 1.1s; } .brow.win .tile:nth-child(2) .in { animation-delay: .18s, 1.2s; }
+    .brow.win .tile:nth-child(3) .in { animation-delay: .36s, 1.3s; } .brow.win .tile:nth-child(4) .in { animation-delay: .54s, 1.4s; }
+    .brow.win .tile:nth-child(5) .in { animation-delay: .72s, 1.5s; }
+    @keyframes jump { 40% { transform: rotateX(180deg) translateY(-16px); } 100% { transform: rotateX(180deg); } }
+
+    .keys { display: flex; flex-direction: column; gap: 7px; align-items: center; margin-top: auto; user-select: none; }
+    .krow { display: flex; gap: 5px; justify-content: center; width: 100%; }
+    .key {
+      flex: 1; max-width: 46px; height: 56px; border-radius: 12px; font-weight: 800; font-size: 1.05rem; text-transform: uppercase;
+      background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); box-shadow: 0 2px 6px rgba(0,0,0,.12);
+      transition: transform .08s, background .3s; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    }
+    .key:active { transform: scale(.92); }
+    .key.wide { max-width: 74px; flex: 1.6; font-size: .8rem; }
+    .key.g { background: linear-gradient(150deg, #34d399, var(--g2)); color: #fff; border-color: transparent; }
+    .key.y { background: linear-gradient(150deg, #fbbf24, var(--y2)); color: #fff; border-color: transparent; }
+    .key.x { background: var(--x2); color: rgba(255,255,255,.5); border-color: transparent; }
+
+    .overlay .panel { max-width: 400px; }
+    .answer { font-size: 2.2rem; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; margin: 4px 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+    .stats div { display: flex; flex-direction: column; align-items: center; }
+    .stats b { font-size: 1.7rem; font-weight: 850; }
+    .stats span { font-size: .7rem; color: var(--muted); text-align: center; line-height: 1.2; }
+    .dist { display: flex; flex-direction: column; gap: 5px; text-align: left; }
+    .dist .r { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .85rem; }
+    .dist .bar2 { height: 22px; min-width: 24px; border-radius: 7px; background: var(--x2); color: #fff; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px; font-size: .8rem;
+      transition: width .6s cubic-bezier(.3,.9,.3,1.1); }
+    .dist .bar2.cur { background: linear-gradient(135deg, #34d399, var(--g2)); }
+    .next { color: var(--muted); font-size: .85rem; margin-top: 10px; }
+    .help p { color: var(--muted); text-align: left; line-height: 1.5; margin: 8px 0; }
+    .ex { display: flex; gap: 5px; justify-content: center; margin: 6px 0; --t: 38px; }
+    .toast { bottom: auto; top: calc(86px + env(safe-area-inset-top)); transform: translateX(-50%) translateY(-12px); }
+    .toast.show { transform: translateX(-50%); }
+    @media (max-width: 380px) { .key { height: 50px; font-size: .95rem; } .krow { gap: 4px; } }
+  </style>
+</head>
+<body>
+  <div class="backdrop"><i></i><i></i><i></i><i></i></div>
+  <main class="wrap">
+    <div class="bar glass">
+      <a class="home" href="../">← Spiele</a>
+      <span class="spacer"></span><span class="title">Wortgitter</span><span class="spacer"></span>
+      <button class="icon" id="helpBtn" title="Spielregeln">?</button>
+      <button class="icon" id="statsBtn" title="Statistik">📊</button>
+    </div>
+    <div class="modes glass">
+      <button data-mode="day">Wort des Tages</button>
+      <button data-mode="free">Endlos</button>
+    </div>
+    <div class="sub" id="sub"></div>
+    <div class="board" id="board"></div>
+    <div class="keys" id="keys"></div>
+  </main>
+
+  <div class="overlay hidden" id="endBox">
+    <div class="panel glass">
+      <div class="trophy" id="endIcon">🎉</div>
+      <h3 id="endTitle"></h3>
+      <div class="answer" id="endWord"></div>
+      <div id="endStats"></div>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button class="btn ghost" id="shareBtn">Teilen</button>
+        <button class="btn" id="againBtn">Neues Wort</button>
+        <button class="btn ghost" id="closeEnd">Schließen</button>
+      </div>
+      <div class="next" id="nextDay"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="helpBox">
+    <div class="panel glass help">
+      <h3 style="font-size:1.4rem">So geht's</h3>
+      <p>Errate das Wort mit 5 Buchstaben in 6 Versuchen. Jeder Versuch muss ein echtes Wort sein. Umlaute schreibst du als <b>ae, oe, ue</b>.</p>
+      <div class="ex" id="exG"></div><p>🟩 Grün: Der Buchstabe ist im Wort und steht an der richtigen Stelle.</p>
+      <div class="ex" id="exY"></div><p>🟨 Gelb: Der Buchstabe kommt vor, aber an einer anderen Stelle.</p>
+      <div class="ex" id="exX"></div><p>⬜ Grau: Der Buchstabe kommt im Wort nicht vor.</p>
+      <p><b>Wort des Tages:</b> jeden Tag ein neues, für alle dasselbe. <b>Endlos:</b> so viele Wörter, wie du willst.</p>
+      <button class="btn" id="closeHelp">Los geht's</button>
+    </div>
+  </div>
+  <div class="confetti" id="confetti"></div>
+  <div class="toast glass" id="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = s => Shell.esc(s);
+    const store = Shell.store;
+    const ROWS = ["qwertzuiop", "asdfghjkl", "yxcvbnm"];
+    const EPOCH = Date.UTC(2026, 0, 1);
+    let ANSWERS = [], VALID = new Set();
+    let mode = store.get("wg-mode") === "free" ? "free" : "day";
+    let game = null, typed = "", busy = false;
+
+    // ---------- words & scoring ----------
+    function score(guess, answer) {
+      const marks = Array(5).fill("x"), left = {};
+      for (let i = 0; i < 5; i++) { if (guess[i] === answer[i]) marks[i] = "g"; else left[answer[i]] = (left[answer[i]] || 0) + 1; }
+      for (let i = 0; i < 5; i++) if (marks[i] !== "g" && left[guess[i]] > 0) { marks[i] = "y"; left[guess[i]]--; }
+      return marks.join("");
+    }
+    function dayNumber() { const now = new Date(); return Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - EPOCH) / 86400000); }
+    function dailyWord(n) {
+      // Same word for everyone on the same day: a fixed shuffle of the list, stepped through day by day.
+      let seed = 20260101;
+      const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+      const order = ANSWERS.map((w, i) => [rnd(), i]).sort((a, b) => a[0] - b[0]).map(x => ANSWERS[x[1]]);
+      return order[((n % order.length) + order.length) % order.length];
+    }
+
+    // ---------- saved state ----------
+    function load(key, fallback) { try { return JSON.parse(store.get(key)) ?? fallback; } catch { return fallback; } }
+    function save(key, value) { store.set(key, JSON.stringify(value)); }
+    function stats() { return load("wg-stats-" + mode, { played: 0, won: 0, streak: 0, best: 0, dist: [0, 0, 0, 0, 0, 0], lastDay: null }); }
+
+    function startGame(fresh) {
+      if (mode === "day") {
+        const n = dayNumber(), saved = load("wg-day", null);
+        game = saved && saved.day === n ? saved : { day: n, answer: dailyWord(n), guesses: [], over: false };
+        $("sub").textContent = `Wortgitter Nr. ${n + 1} · ${new Date().toLocaleDateString("de-DE", { day: "numeric", month: "long" })}`;
+      } else {
+        const saved = load("wg-free", null);
+        game = !fresh && saved && !saved.over ? saved : { answer: ANSWERS[Math.floor(Math.random() * ANSWERS.length)], guesses: [], over: false };
+        const st = stats();
+        $("sub").textContent = `Endlos · ${st.won} von ${st.played} gelöst`;
+      }
+      persist();
+      typed = "";
+      document.querySelectorAll(".modes button").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+      buildBoard();
+      render(false);
+      if (game.over) setTimeout(() => showEnd(false), 300);
+    }
+    function persist() { save(mode === "day" ? "wg-day" : "wg-free", game); }
+
+    // ---------- drawing ----------
+    function tileHtml(ch = "", cls = "") { return `<div class="tile ${cls}"><div class="in"><div class="f">${ch}</div><div class="b">${ch}</div></div></div>`; }
+    function buildBoard() {
+      $("board").innerHTML = Array.from({ length: 6 }, (_, r) => `<div class="brow" data-row="${r}">${Array.from({ length: 5 }, () => tileHtml()).join("")}</div>`).join("");
+    }
+    function render(animateLast) {
+      const marks = game.guesses.map(w => score(w, game.answer));
+      for (let r = 0; r < 6; r++) {
+        const row = $("board").children[r];
+        const word = r < game.guesses.length ? game.guesses[r] : r === game.guesses.length && !game.over ? typed : "";
+        [...row.children].forEach((tile, c) => {
+          const ch = word[c] || "";
+          tile.querySelector(".f").textContent = ch; tile.querySelector(".b").textContent = ch;
+          tile.className = "tile";
+          if (r < game.guesses.length) {
+            tile.classList.add(marks[r][c]);
+            if (animateLast && r === game.guesses.length - 1) { tile.classList.add("flip"); tile.style.animationDelay = c * 0.18 + "s"; }
+            else { tile.classList.add("done"); tile.style.animationDelay = ""; }
+          } else if (ch) tile.classList.add("typed");
+        });
+        row.classList.toggle("win", !!(animateLast && r === game.guesses.length - 1 && marks[r] === "ggggg"));
+      }
+      const state = {}, rank = { g: 3, y: 2, x: 1 };
+      game.guesses.forEach((w, r) => [...w].forEach((ch, c) => { const m = marks[r][c]; if (!state[ch] || rank[m] > rank[state[ch]]) state[ch] = m; }));
+      const paint = () => document.querySelectorAll(".key[data-k]").forEach(k => { k.classList.remove("g", "y", "x"); if (state[k.dataset.k]) k.classList.add(state[k.dataset.k]); });
+      if (animateLast) setTimeout(paint, 1100); else paint();
+    }
+    function shake() {
+      const row = $("board").children[game.guesses.length];
+      if (!row) return;
+      row.classList.remove("shake"); void row.offsetWidth; row.classList.add("shake");
+    }
+
+    // ---------- input ----------
+    function press(k) {
+      if (!game || game.over || busy) return;
+      if (k === "enter") return submit();
+      if (k === "back") typed = typed.slice(0, -1);
+      else if (/^[a-z]$/.test(k) && typed.length < 5) typed += k;
+      render(false);
+    }
+    function submit() {
+      if (typed.length < 5) { Shell.toast("Zu wenig Buchstaben"); return shake(); }
+      if (!VALID.has(typed)) { Shell.toast("Dieses Wort kenne ich nicht"); return shake(); }
+      game.guesses.push(typed);
+      typed = "";
+      const won = game.guesses[game.guesses.length - 1] === game.answer;
+      if (won || game.guesses.length >= 6) { game.over = true; game.won = won; record(won); }
+      persist();
+      busy = true;
+      render(true);
+      setTimeout(() => { busy = false; if (game.over) showEnd(true); }, won ? 2200 : 1300);
+    }
+    function record(won) {
+      const st = stats();
+      st.played++;
+      if (won) { st.won++; st.dist[game.guesses.length - 1]++; }
+      if (mode === "day") {
+        st.streak = won ? (st.lastDay === game.day - 1 ? st.streak + 1 : 1) : 0;
+        st.lastDay = won ? game.day : st.lastDay;
+      } else st.streak = won ? st.streak + 1 : 0;
+      st.best = Math.max(st.best, st.streak);
+      save("wg-stats-" + mode, st);
+    }
+
+    // ---------- end & stats ----------
+    function statsHtml() {
+      const st = stats(), max = Math.max(1, ...st.dist), cur = game && game.over && game.won ? game.guesses.length : 0;
+      return `<div class="stats">
+          <div><b>${st.played}</b><span>Gespielt</span></div>
+          <div><b>${st.played ? Math.round(st.won / st.played * 100) : 0}</b><span>% gelöst</span></div>
+          <div><b>${st.streak}</b><span>Serie</span></div>
+          <div><b>${st.best}</b><span>Beste Serie</span></div>
+        </div>
+        <div class="dist">${st.dist.map((n, i) => `<div class="r">${i + 1}<div class="bar2 ${cur === i + 1 ? "cur" : ""}" style="width:${Math.max(8, n / max * 100)}%">${n}</div></div>`).join("")}</div>`;
+    }
+    function showEnd(celebrate) {
+      $("endIcon").textContent = game.won ? ["🤯", "🎉", "🥳", "👏", "😅", "😮‍💨"][game.guesses.length - 1] : "😢";
+      $("endTitle").textContent = game.won ? ["Unglaublich!", "Genial!", "Super!", "Gut gemacht!", "Geschafft!", "Puh, knapp!"][game.guesses.length - 1] : "Leider nicht geschafft";
+      $("endWord").textContent = game.answer;
+      $("endStats").innerHTML = statsHtml();
+      $("againBtn").classList.toggle("hidden", mode === "day");
+      $("shareBtn").classList.remove("hidden");
+      $("nextDay").textContent = mode === "day" ? "Morgen gibt es ein neues Wort – oder spiel „Endlos“." : "";
+      $("endBox").classList.remove("hidden");
+      if (celebrate && game.won) Shell.confetti();
+    }
+    function shareText() {
+      const head = mode === "day" ? `Wortgitter Nr. ${game.day + 1} ${game.won ? game.guesses.length : "X"}/6` : `Wortgitter ${game.won ? game.guesses.length : "X"}/6`;
+      const grid = game.guesses.map(w => [...score(w, game.answer)].map(m => ({ g: "🟩", y: "🟨", x: "⬜" }[m])).join("")).join("\n");
+      return head + "\n\n" + grid;
+    }
+    $("shareBtn").onclick = async () => {
+      const text = shareText();
+      if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e.name === "AbortError") return; } }
+      try { await navigator.clipboard.writeText(text); Shell.toast("Ergebnis kopiert"); } catch { prompt("Ergebnis:", text); }
+    };
+    $("againBtn").onclick = () => { $("endBox").classList.add("hidden"); startGame(true); };
+    $("closeEnd").onclick = () => $("endBox").classList.add("hidden");
+    $("statsBtn").onclick = () => {
+      $("endIcon").textContent = "📊"; $("endTitle").textContent = mode === "day" ? "Wort des Tages" : "Endlos";
+      $("endWord").textContent = game && game.over ? game.answer : "";
+      $("endStats").innerHTML = statsHtml();
+      $("againBtn").classList.toggle("hidden", !(mode === "free" && game && game.over));
+      $("shareBtn").classList.toggle("hidden", !(game && game.over));
+      $("nextDay").textContent = "";
+      $("endBox").classList.remove("hidden");
+    };
+    $("helpBtn").onclick = () => $("helpBox").classList.remove("hidden");
+    $("closeHelp").onclick = () => { $("helpBox").classList.add("hidden"); store.set("wg-help", "1"); };
+    document.querySelectorAll(".modes button").forEach(b => b.onclick = () => {
+      if (b.dataset.mode === mode) return;
+      mode = b.dataset.mode; store.set("wg-mode", mode); $("shareBtn").classList.remove("hidden"); startGame(false);
+    });
+
+    $("keys").innerHTML = ROWS.map((row, i) => `<div class="krow">${i === 2 ? '<button class="key wide" data-k="enter">Raten</button>' : ""}${
+      [...row].map(k => `<button class="key" data-k="${k}">${k}</button>`).join("")}${i === 2 ? '<button class="key wide" data-k="back" aria-label="Löschen">⌫</button>' : ""}</div>`).join("");
+    $("keys").addEventListener("click", e => { const k = e.target.closest("[data-k]"); if (k) { press(k.dataset.k); k.blur(); } });
+    document.addEventListener("keydown", e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || !$("helpBox").classList.contains("hidden")) return;
+      if (e.key === "Enter") { e.preventDefault(); press("enter"); }
+      else if (e.key === "Backspace") press("back");
+      else if (/^[a-zA-Z]$/.test(e.key)) press(e.key.toLowerCase());
+      else if ("äöüÄÖÜ".includes(e.key)) Shell.toast("Umlaute bitte als ae, oe, ue tippen");
+    });
+    // examples in the help
+    $("exG").innerHTML = [..."sonne"].map((c, i) => tileHtml(c, i === 0 ? "g done" : "")).join("");
+    $("exY").innerHTML = [..."tisch"].map((c, i) => tileHtml(c, i === 2 ? "y done" : "")).join("");
+    $("exX").innerHTML = [..."blume"].map((c, i) => tileHtml(c, i === 3 ? "x done" : "")).join("");
+
+    fetch("woerter.json").then(r => r.json()).then(data => {
+      ANSWERS = data.answers; VALID = new Set([...data.valid, ...data.answers]);
+      startGame(false);
+      if (!store.get("wg-help")) $("helpBox").classList.remove("hidden");
+    }).catch(() => Shell.toast("Wörter konnten nicht geladen werden"));
+  </script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Schnellmaler</title>
+  <link rel="stylesheet" href="../static/common.css">
+  <script src="../static/embed.js"></script>
+  <script src="../static/common.js"></script>
+  <script src="../static/art.js"></script>
+  <style>
+    .card.s1 { --c1: #f472b6; --c2: #9d174d; } .card.s2 { --c1: #60a5fa; --c2: #1e40af; }
+    .card.s3 { --c1: #34d399; --c2: #065f46; } .card.s4 { --c1: #fbbf24; --c2: #92400e; }
+    .tag.tv { background: linear-gradient(135deg, #0ea5e9, #6366f1); color: #fff; border: 0; }
+    .tvbtn { padding: 6px 12px; font-size: .85rem; }
+
+    #table { align-items: center; }
+    #table > * { width: 100%; max-width: 900px; }
+    .topbar .timer {
+      font-family: ui-monospace, monospace; font-weight: 800; padding: 5px 12px; border-radius: 999px; flex: none;
+      background: var(--glass-strong); border: 1px solid var(--glass-border); min-width: 64px; text-align: center;
+    }
+    .timer.low { color: #fff; background: linear-gradient(135deg, #f97316, #ef4444); border-color: transparent; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(1.08); } }
+
+    .panelx { border-radius: 26px; padding: 18px 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; animation: rise .4s ease both; }
+    .panelx h2 { margin: 0; font-size: clamp(1.2rem, 4vw, 1.6rem); letter-spacing: -.02em; text-align: center; }
+    .hint { font-family: ui-monospace, monospace; font-weight: 800; letter-spacing: .12em; font-size: clamp(1.4rem, 6vw, 2.2rem); text-align: center; word-break: break-word; }
+    .hint small { display: block; font-family: Inter, system-ui, sans-serif; letter-spacing: 0; font-size: .8rem; color: var(--muted); font-weight: 600; margin-top: 4px; }
+    .wordcard {
+      font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 850; padding: 12px 26px; border-radius: 18px; color: #3b1d4a;
+      background: linear-gradient(160deg, #fff7d6, #ffe9a8); box-shadow: 0 10px 26px rgba(120, 80, 0, .2);
+      transform: rotate(-1.5deg); animation: flipin .7s cubic-bezier(.3,.9,.3,1.2) both;
+    }
+    .wordcard small { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; opacity: .55; font-weight: 700; }
+    @keyframes flipin { from { transform: perspective(700px) rotateY(90deg) scale(.9); opacity: 0; } 60% { transform: perspective(700px) rotateY(-10deg) rotate(-1.5deg); opacity: 1; } }
+    .choices { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .choices .btn { font-size: 1.15rem; padding: 16px 22px; }
+
+    .paper {
+      width: 100%; max-width: max(300px, min(820px, calc((100dvh - 320px) * 4 / 3))); aspect-ratio: 4 / 3; border-radius: 22px; overflow: hidden; position: relative;
+      background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 16px 40px rgba(30, 20, 80, .25);
+    }
+    .paper canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    .paper.pad canvas { cursor: crosshair; }
+    .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: center; }
+    .swatches { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding: 8px 10px; border-radius: 18px; }
+    .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.8); box-shadow: 0 2px 6px rgba(0,0,0,.2); padding: 0; }
+    .swatch.on { transform: scale(1.18); box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgba(0,0,0,.25); }
+    .sizes, .acts { display: flex; gap: 6px; padding: 6px 8px; border-radius: 18px; align-items: center; }
+    .tool { width: 40px; height: 40px; border-radius: 12px; border: 1px solid transparent; background: none; display: grid; place-items: center; font-size: 1.1rem; }
+    .tool.on { background: var(--glass-strong); border-color: var(--accent); }
+    .tool i { display: block; border-radius: 50%; background: var(--text); }
+
+    .guessrow { width: 100%; max-width: 620px; display: flex; gap: 10px; }
+    .guessrow input { flex: 1; min-width: 0; font-size: 1.1rem; padding: 14px 16px; }
+    .feed { width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 6px; font-size: .95rem; }
+    .feed .it { padding: 7px 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--glass-border); animation: rise .3s ease both; }
+    .feed .it b { margin-right: 6px; }
+    .feed .it.correct { background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: 0; font-weight: 700; }
+    .feed .it.word { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: 0; font-weight: 700; }
+    .feed .it.info { background: none; border: 0; color: var(--muted); text-align: center; padding: 2px; }
+    .feed .it.close { box-shadow: 0 0 0 2px #f59e0b; }
+    .feed .it .closetag { color: #f59e0b; font-weight: 800; margin-left: 6px; }
+    .lookup { font-size: 3.4rem; animation: bob 2s ease-in-out infinite; }
+    .scorelist { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+    .scorelist .row2 { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--glass-border); transition: transform .3s; }
+    .scorelist .row2.drawer { box-shadow: 0 0 0 2px var(--accent); }
+    .scorelist .row2.ok { box-shadow: 0 0 0 2px var(--ok); }
+    .scorelist .n { flex: 1; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .scorelist .pts { font-weight: 850; font-variant-numeric: tabular-nums; }
+    .scorelist .plus { color: var(--ok); font-weight: 800; font-size: .85rem; animation: pop 1.6s ease both; }
+
+    /* ---------- TV / host screen ---------- */
+    body.tv #table > * { max-width: none; }
+    body.tv .topbar { display: none; }
+    .tvgrid { display: grid; grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 420px); gap: 1.6vw; height: calc(100vh - 28px); padding: 4px; }
+    .tvmain { display: flex; flex-direction: column; gap: 1.2vw; min-height: 0; align-items: center; }
+    .tvcenter { flex: 1; width: 100%; min-height: 0; display: grid; place-items: center; }
+    .tvhead { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 2vw; }
+    .tvhead .who { font-size: clamp(1rem, 1.8vw, 2rem); font-weight: 750; }
+    .tvhead .hint { font-size: clamp(1.6rem, 3.6vw, 4.4rem); }
+    .tvmain .paper { max-width: min(100%, calc((100vh - 12vw) * 4 / 3)); }
+    .ring { --p: 1; width: clamp(64px, 6.5vw, 120px); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; flex: none;
+      background: conic-gradient(var(--ring-c, var(--accent)) calc(var(--p) * 360deg), var(--glass-strong) 0); }
+    .ring span { width: 78%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: var(--bg-1); font-weight: 850; font-size: clamp(1.1rem, 2vw, 2.4rem); font-variant-numeric: tabular-nums; }
+    .tvside { display: flex; flex-direction: column; gap: 1vw; min-height: 0; }
+    .tvside .glass { border-radius: 22px; padding: 14px; }
+    .tvside .scorelist .row2 { font-size: clamp(.9rem, 1.2vw, 1.5rem); }
+    .tvside .feedbox { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+    .tvside .feed { font-size: clamp(.85rem, 1.1vw, 1.35rem); max-width: none; }
+    .tvbig { text-align: center; }
+    .tvbig .big { font-size: clamp(2.4rem, 7vw, 8rem); font-weight: 900; letter-spacing: -.03em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; animation: popin .6s cubic-bezier(.2,.9,.3,1.3) both; }
+    .tvbig p { font-size: clamp(1rem, 2vw, 2.2rem); color: var(--muted); margin: .4em 0 0; }
+    @media (max-width: 700px) { .tvgrid { grid-template-columns: 1fr; height: auto; } }
+  </style>
+</head>
+<body>
+  <section id="table" class="hidden">
+    <div class="topbar glass">
+      <span class="title">Schnellmaler</span>
+      <span class="code" id="tableCode"></span>
+      <span class="spacer"></span>
+      <span class="timer hidden" id="timer"></span>
+      <button class="btn ghost" id="leaveGame" style="padding:7px 14px">Verlassen</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const send = msg => Shell.send(msg);
+    const esc = s => Shell.esc(s);
+    const W = 1000, H = 750, SCALE = 1.5;
+    const COLORS = ["#111827", "#6b7280", "#ef4444", "#f97316", "#facc15", "#22c55e", "#0d9488",
+                    "#38bdf8", "#2563eb", "#8b5cf6", "#ec4899", "#92400e", "#fcd5b5", "#ffffff"];
+    const SIZES = [4, 10, 22, 44];
+
+    window.GAME = {
+      kind: "schnellmaler",
+      title: "Schnellmaler",
+      minPlayers: 2,
+      noBots: true,
+      countPlayers: g => g.players.filter(p => !p.screen).length,
+      roomPlayer: (p, me, g) => {
+        if (p.id !== me) return p.screen ? '<span class="tag tv">📺 Host</span>' : "";
+        if (p.screen) return '<button class="btn tvbtn" data-room-act="screen" title="Dieses Gerät ist der Bildschirm">📺 Host ✓</button>';
+        return g.players.some(q => q.screen) ? "" : '<button class="btn ghost tvbtn" data-room-act="screen" title="Dieses Gerät wird zum Bildschirm (z. B. Fernseher)">📺 Host</button>';
+      },
+      art: "schnellmaler",
+      fan: [["s1", "✏️"], ["s2", "📺"], ["s3", "🤔"], ["s4", "🏆"]].map(([c, e]) => Shell.card(c, `<span class="emo">${e}</span>`)).join(""),
+      settings: [
+        { key: "rounds", label: "Runden", options: [[2, "2 Runden"], [1, "1 Runde"], [3, "3 Runden"]] },
+        { key: "seconds", label: "Zeit", options: [[80, "80 Sekunden"], [60, "60 Sekunden"], [100, "100 Sekunden"], [120, "120 Sekunden"]] },
+      ],
+      render: () => render(),
+      onMessage: msg => { if (msg.t === "live") live(msg); },
+      finished: () => {
+        const g = Shell.game;
+        const ranked = g.players.filter(p => !p.screen).sort((a, b) => b.score - a.score);
+        const mine = ranked[0] && ranked[0].id === Shell.me;
+        return {
+          icon: "🎨",
+          title: ranked[0] ? (mine ? "Du hast gewonnen!" : `${ranked[0].name} gewinnt!`) : "Spiel beendet",
+          sub: `<div class="scorelist" style="margin-top:10px">${ranked.map((p, i) => `<div class="row2">${i === 0 ? "🏆" : i + 1 + "."}
+            <span class="n">${esc(p.name)}</span><span class="pts">${p.score}</span></div>`).join("")}</div>`,
+        };
+      },
+    };
+
+    // ---------- canvas helpers ----------
+    function strokePath(ctx, s, from = 0) {
+      const p = s.p;
+      ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = s.w;
+      if (p.length === 2) { ctx.beginPath(); ctx.arc(p[0], p[1], s.w / 2, 0, Math.PI * 2); ctx.fill(); return; }
+      ctx.beginPath();
+      const start = Math.max(0, from - 2);
+      ctx.moveTo(p[start], p[start + 1]);
+      for (let i = start + 2; i < p.length; i += 2) ctx.lineTo(p[i], p[i + 1]);
+      ctx.stroke();
+    }
+    function setupCanvas(canvas) {
+      canvas.width = W * SCALE; canvas.height = H * SCALE;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+      ctx.lineCap = ctx.lineJoin = "round";
+      return ctx;
+    }
+    function paint(ctx, strokes) {
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+      for (const s of strokes) strokePath(ctx, s);
+    }
+
+    // ---------- state ----------
+    let viewKey = null, ctx = null, strokes = [], endAt = null;
+    let color = COLORS[0], size = SIZES[1], eraser = false, cur = null, pending = [], flushTimer = null;
+
+    function role(g) {
+      const me = g.players.find(p => p.id === Shell.me);
+      if (me && me.screen) return "tv";
+      if (g.state === "playing" && g.drawer === Shell.me && g.phase !== "reveal") return "drawer";
+      return "guesser";
+    }
+
+    function render() {
+      const g = Shell.game, r = role(g);
+      document.body.classList.toggle("tv", r === "tv");
+      $("tableCode").textContent = `Code ${g.code} · Zug ${Math.min(g.turn, g.turns)}/${g.turns}`;
+      $("leaveGame").onclick = Shell.leaveGame;
+      endAt = g.remaining == null ? null : Date.now() + g.remaining * 1000;
+      const key = `${r}|${g.turn}|${g.phase}|${g.state}`;
+      if (key !== viewKey) {
+        viewKey = key;
+        if (r === "tv") buildTv(g); else if (r === "drawer") buildDrawer(g); else buildGuesser(g);
+        ctx = $("cv") ? setupCanvas($("cv")) : null;
+        strokes = JSON.parse(JSON.stringify(g.strokes || []));
+        if (ctx) paint(ctx, strokes);
+        if (r === "drawer" && g.phase === "draw") setupPad();
+      } else if (r !== "drawer" && ctx && JSON.stringify(g.strokes).length !== JSON.stringify(strokes).length) {
+        strokes = JSON.parse(JSON.stringify(g.strokes)); paint(ctx, strokes);
+      }
+      update(g, r);
+      tick();
+    }
+
+    function drawerName(g) { const d = g.players.find(p => p.id === g.drawer); return d ? d.name : "?"; }
+    function hintHtml(g) {
+      if (g.phase === "choose") return `<div class="hint">…<small>${esc(drawerName(g))} wählt ein Wort</small></div>`;
+      return `<div class="hint">${esc(g.word || g.hint)}<small>${g.letters} Buchstaben</small></div>`;
+    }
+    function scoreHtml(g) {
+      return g.players.filter(p => !p.screen).sort((a, b) => b.score - a.score).map(p => `
+        <div class="row2 ${p.id === g.drawer ? "drawer" : ""} ${p.guessed ? "ok" : ""}">${Shell.avatar(p)}
+          <span class="n">${esc(p.name)}${p.id === g.drawer ? " ✏️" : ""}</span>
+          ${p.gained ? `<span class="plus">+${p.gained}</span>` : ""}<span class="pts">${p.score}</span></div>`).join("");
+    }
+    function feedHtml(g, n) {
+      return g.feed.slice(-n).map(f => f.kind === "guess"
+        ? `<div class="it ${f.close ? "close" : ""}"><b>${esc(f.name)}</b>${esc(f.text)}${f.close ? '<span class="closetag">knapp daneben!</span>' : ""}</div>`
+        : `<div class="it ${f.kind}">${esc(f.text)}</div>`).join("");
+    }
+
+    // ---------- TV ----------
+    function buildTv(g) {
+      const center = g.state !== "playing" ? `<div class="tvbig"><div class="big">Fertig!</div></div>`
+        : g.phase === "choose" ? `<div class="tvbig"><div class="big">✏️ ${esc(drawerName(g))}</div><p>wählt gerade ein Wort …</p></div>`
+        : g.phase === "reveal" ? `<div class="tvbig"><p>Das Wort war</p><div class="big">${esc(g.word || "")}</div></div>`
+        : `<div class="paper"><canvas id="cv"></canvas></div>`;
+      $("stage").innerHTML = `
+        <div class="tvgrid">
+          <div class="tvmain">
+            <div class="tvhead"><div class="who">✏️ ${esc(drawerName(g))} zeichnet</div><div id="tvHint"></div><div class="ring" id="ring"><span id="ringT"></span></div></div>
+            <div class="tvcenter">${center}</div>
+          </div>
+          <div class="tvside">
+            <div class="glass"><div class="scorelist" id="scores"></div></div>
+            <div class="glass feedbox"><div class="feed" id="feed"></div></div>
+          </div>
+        </div>`;
+    }
+
+    // ---------- drawer ----------
+    function buildDrawer(g) {
+      if (g.phase === "choose") {
+        $("stage").innerHTML = `<div class="panelx glass"><h2>Du bist dran! Wähle ein Wort</h2>
+          <div class="choices">${g.choices.map(w => `<button class="btn" data-word="${esc(w)}">${esc(w)}</button>`).join("")}</div>
+          <p class="empty">Wenn du nichts wählst, wird nach ${g.seconds} Sekunden ein Wort ausgelost.</p></div>`;
+        document.querySelectorAll("[data-word]").forEach(b => b.onclick = () => send({ t: "choose", word: b.dataset.word }));
+        return;
+      }
+      $("stage").innerHTML = `<div class="panelx glass">
+        <div class="wordcard"><small>Zeichne</small>${esc(g.word || "")}</div>
+        <div class="paper pad"><canvas id="cv"></canvas></div>
+        <div class="tools">
+          <div class="swatches glass">${COLORS.map(c => `<button class="swatch" data-color="${c}" style="background:${c}"></button>`).join("")}</div>
+          <div class="sizes glass">${SIZES.map(s => `<button class="tool" data-size="${s}"><i style="width:${Math.max(4, s / 2)}px;height:${Math.max(4, s / 2)}px"></i></button>`).join("")}</div>
+          <div class="acts glass"><button class="tool" id="eraser" title="Radierer">🧽</button><button class="tool" id="undo" title="Rückgängig">↶</button><button class="tool" id="clear" title="Alles löschen">🗑️</button></div>
+        </div>
+        <div class="feed" id="feed"></div>
+        <button class="btn ghost" id="skip">Aufgeben</button>
+      </div>`;
+      $("skip").onclick = () => { if (confirm("Diesen Zug aufgeben?")) send({ t: "skip" }); };
+    }
+
+    function setupPad() {
+      const canvas = $("cv");
+      const pick = () => {
+        document.querySelectorAll(".swatch").forEach(b => b.classList.toggle("on", !eraser && b.dataset.color === color));
+        document.querySelectorAll("[data-size]").forEach(b => b.classList.toggle("on", +b.dataset.size === size));
+        $("eraser").classList.toggle("on", eraser);
+      };
+      pick();
+      document.querySelectorAll(".swatch").forEach(b => b.onclick = () => { color = b.dataset.color; eraser = false; pick(); });
+      document.querySelectorAll("[data-size]").forEach(b => b.onclick = () => { size = +b.dataset.size; pick(); });
+      $("eraser").onclick = () => { eraser = !eraser; pick(); };
+      $("undo").onclick = () => { strokes.pop(); paint(ctx, strokes); send({ t: "draw", op: "undo" }); };
+      $("clear").onclick = () => { if (strokes.length && confirm("Ganze Zeichnung löschen?")) { strokes = []; paint(ctx, strokes); send({ t: "draw", op: "clear" }); } };
+      const pos = e => { const r = canvas.getBoundingClientRect(); return [Math.round((e.clientX - r.left) / r.width * W), Math.round((e.clientY - r.top) / r.height * H)]; };
+      const flush = () => { clearTimeout(flushTimer); flushTimer = null; if (pending.length) { send({ t: "draw", op: "pts", p: pending }); pending = []; } };
+      canvas.onpointerdown = e => {
+        canvas.setPointerCapture(e.pointerId);
+        const [x, y] = pos(e);
+        cur = { c: eraser ? "#ffffff" : color, w: eraser ? Math.max(size, 22) * 1.6 : size, p: [x, y] };
+        strokes.push(cur); strokePath(ctx, cur);
+        send({ t: "draw", op: "begin", c: cur.c, w: cur.w, p: [x, y] });
+      };
+      canvas.onpointermove = e => {
+        if (!cur) return;
+        const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+        for (const ev of events.length ? events : [e]) {
+          const [x, y] = pos(ev), p = cur.p;
+          const dx = x - p[p.length - 2], dy = y - p[p.length - 1];
+          if (dx * dx + dy * dy < 9) continue;
+          ctx.strokeStyle = cur.c; ctx.lineWidth = cur.w;
+          ctx.beginPath(); ctx.moveTo(p[p.length - 2], p[p.length - 1]); ctx.lineTo(x, y); ctx.stroke();
+          p.push(x, y); pending.push(x, y);
+        }
+        if (!flushTimer) flushTimer = setTimeout(flush, 90);
+      };
+      canvas.onpointerup = canvas.onpointercancel = () => { if (cur) { cur = null; flush(); } };
+    }
+
+    // ---------- guesser ----------
+    function buildGuesser(g) {
+      const tv = !!g.screen;
+      let body;
+      if (g.phase === "choose") body = `<h2>✏️ ${esc(drawerName(g))} wählt ein Wort …</h2>`;
+      else if (g.phase === "reveal") body = `<h2>Das Wort war</h2><div class="wordcard">${esc(g.word || "")}</div>`;
+      else body = `${tv ? '<div class="lookup">📺</div><p class="empty">Schau auf den Bildschirm und rate!</p>' : '<div class="paper"><canvas id="cv"></canvas></div>'}
+        <div class="guessrow" id="guessrow"><input id="guess" maxlength="60" placeholder="Dein Tipp …" autocomplete="off" autocapitalize="off" enterkeyhint="send"><button class="btn" id="send">Raten</button></div>`;
+      $("stage").innerHTML = `<div class="panelx glass"><div id="hintBox"></div>${body}<div class="feed" id="feed"></div>
+        <div class="scorelist" id="scores" style="max-width:620px"></div></div>`;
+      const input = $("guess");
+      if (input) {
+        const go = () => { const t = input.value.trim(); if (t) { send({ t: "guess", text: t }); input.value = ""; } input.focus(); };
+        $("send").onclick = go;
+        input.onkeydown = e => { if (e.key === "Enter") go(); };
+      }
+    }
+
+    function update(g, r) {
+      if ($("scores")) $("scores").innerHTML = scoreHtml(g);
+      if ($("feed")) $("feed").innerHTML = feedHtml(g, r === "tv" ? 14 : 6);
+      if ($("tvHint")) $("tvHint").innerHTML = g.phase === "draw" ? hintHtml(g) : "";
+      if ($("hintBox")) $("hintBox").innerHTML = g.phase === "draw" ? hintHtml(g) : "";
+      const me = g.players.find(p => p.id === Shell.me);
+      if ($("guessrow") && me && me.guessed) $("guessrow").innerHTML = '<p class="empty" style="margin:0 auto">✓ Erraten! Warte auf die anderen …</p>';
+    }
+
+    function tick() {
+      const g = Shell.game;
+      if (!g || g.state !== "playing" || endAt == null) { $("timer").classList.add("hidden"); return; }
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      $("timer").classList.remove("hidden");
+      $("timer").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      $("timer").classList.toggle("low", left <= 10 && g.phase === "draw");
+      if ($("ring")) {
+        $("ring").style.setProperty("--p", Math.max(0, Math.min(1, (endAt - Date.now()) / 1000 / (g.seconds || 1))));
+        $("ring").style.setProperty("--ring-c", left <= 10 ? "#ef4444" : "var(--accent)");
+        $("ringT").textContent = left;
+      }
+    }
+    setInterval(tick, 250);
+
+    // ---------- live drawing from the drawer ----------
+    function live(msg) {
+      if (msg.by === Shell.me || !ctx) return;
+      if (msg.op === "begin") { const s = { c: msg.s.c, w: msg.s.w, p: [...msg.s.p] }; strokes.push(s); strokePath(ctx, s); }
+      else if (msg.op === "pts" && strokes.length) {
+        const s = strokes[strokes.length - 1], from = s.p.length;
+        s.p.push(...msg.p); strokePath(ctx, s, from);
+      } else if (msg.op === "undo") { strokes.pop(); paint(ctx, strokes); }
+      else if (msg.op === "clear") { strokes = []; paint(ctx, strokes); }
+    }
+
+    Shell.start(window.GAME);
+  </script>
+</body>
+</html>
